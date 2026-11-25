@@ -155,7 +155,7 @@ class Welcome(commands.GroupCog, group_name="welcome", group_description="Welcom
             embed.set_image(url=image_ref)
         if file is None or file.filename != "welcome.png":
             embed.set_thumbnail(url=member.display_avatar.url)  # the card already shows the avatar, so only add it for other pictures
-        return compact(view=embed, file=file.with_view(view))
+        return compact(view=embed.with_view(view), file=file)
 
     def banner_mode(self, w, style: str) -> str:
         """Which picture to use. An explicit /welcome banner choice wins; otherwise the old style setting decides."""

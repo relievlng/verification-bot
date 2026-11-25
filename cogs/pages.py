@@ -158,7 +158,7 @@ async def refresh(guild: discord.Guild, row) -> bool:
     parts = await render(guild, row)
     file = parts.pop("file", None)
     try:
-        await message.edit(view=parts["embed"], attachments=[file] if file else [].with_view(parts.get("view")))
+        await message.edit(view=parts["embed"].with_view(parts.get("view")), attachments=[file] if file else [])
     except discord.HTTPException:
         return False
     return True

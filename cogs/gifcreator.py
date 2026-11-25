@@ -213,7 +213,7 @@ class GifCreator(commands.Cog):
         if edit:
             await interaction.edit_original_response(**kwargs)
         else:
-            await interaction.followup.send(view=embed, file=discord.File(io.BytesIO(data), filename="creation.gif").with_view(kwargs["view"]), ephemeral=True)
+            await interaction.followup.send(view=embed.with_view(kwargs["view"]), file=discord.File(io.BytesIO(data), filename="creation.gif"), ephemeral=True)
 
     @app_commands.command(description="Turn a picture into an animated GIF (a pop-up asks for the details)")
     @app_commands.describe(image="Upload the picture (or paste a link in the pop-up)")
