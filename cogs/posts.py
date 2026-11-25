@@ -438,7 +438,7 @@ class BulkConfirm(discord.ui.View):
             await asyncio.sleep(BULK_PAUSE)
         skipped = [f"⏭️ **{d.title}** (already posted in {d.channel.mention})" for d, was in self.drafts if was]
         body = "\n".join(done + failed + skipped) or "Nothing to post."
-        await interaction.edit_original_response(content=None, embed=ui.card("📦 Packs posted" if not failed else "⚠️ Posted with problems", body[:4000], section="Posts"))
+        await interaction.edit_original_response(content=None, view=ui.card("📦 Packs posted" if not failed else "⚠️ Posted with problems", body[:4000], section="Posts"))
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -542,7 +542,7 @@ class Posts(commands.GroupCog, group_name="post", group_description="Posts with 
             interaction.guild, "posts", "Post edited",
             ui.kv(("🛡️ By", interaction.user.mention), ("📍 Channel", f"<#{message.channel.id}>"), *describe_post(draft), ("🔗 Link", f"[Jump to post]({message.jump_url})")), subject=interaction.user.id,
         )
-        await interaction.followup.send(embed=ui.card("✅ Post updated", f"[Jump to it]({message.jump_url})", color=COLOR), ephemeral=True)
+        await interaction.followup.send(view=ui.card("✅ Post updated", f"[Jump to it]({message.jump_url})", color=COLOR), ephemeral=True)
 
     @app_commands.command(name="new", description="Write a post: a card with a big photo, a GIF and a file at the bottom")
     @app_commands.describe(
@@ -643,12 +643,13 @@ class Posts(commands.GroupCog, group_name="post", group_description="Posts with 
         drafts, problems = await parse_bulk(interaction.guild, await file.read())
         if problems:
             shown = "\n".join(f"• {p}" for p in problems[:15]) + (f"\n…and {len(problems) - 15} more." if len(problems) > 15 else "")
-            return await interaction.followup.send(embed=ui.card("❌ Nothing was posted", f"Fix these in your file and try again:\n\n{shown}", section="Posts"), ephemeral=True)
+            return await interaction.followup.send(view=ui.card("❌ Nothing was posted", f"Fix these in your file and try again:\n\n{shown}", section="Posts"), ephemeral=True)
         lines = [f"{'⏭️' if skipped else '📦'} **{d.title}** → {d.channel.mention}" + (" · already posted, will be skipped" if skipped else "") + (f" · 📥 {d.deliver[1]}" if d.deliver else "")
                  + (" · 🔔" if (d.ping or d.mention_all) else "") for d, skipped in drafts]
         todo = sum(1 for _, skipped in drafts if not skipped)
-        await interaction.followup.send(embed=ui.card(f"📦 Ready to post {todo} pack(s)", "\n".join(lines)[:4000] + "\n\nEverything checked out. Each post is recorded and logged.", section="Posts"),
-                                        view=BulkConfirm(self, interaction.user.id, drafts), ephemeral=True)
+        await interaction.followup.send(
+            view=ui.card(f"📦 Ready to post {todo} pack(s)", "\n".join(lines)[:4000] + "\n\nEverything checked out. Each post is recorded and logged.", section="Posts").with_view(BulkConfirm(self, interaction.user.id, drafts)),
+            ephemeral=True)
 
     @app_commands.command(description="Get an example JSON file for /post bulk")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -667,7 +668,7 @@ class Posts(commands.GroupCog, group_name="post", group_description="Posts with 
             raise UserError("No posts yet. Make one with `/post new`.")
         lines = [f"[{r['title'] or 'Untitled'}](https://discord.com/channels/{interaction.guild_id}/{r['channel_id']}/{r['message_id']}) · <#{r['channel_id']}> · <@{r['author_id']}>"
                  + (f" · 📦 {r['pack_name']}" if r["pack_name"] else "") + (f" · 📎 {r['file_name']}" if r["file_name"] else "") for r in rows]
-        await interaction.response.send_message(embed=ui.card("📢 Posts", "\n".join(lines), guild=interaction.guild, section="Posts"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("📢 Posts", "\n".join(lines), guild=interaction.guild, section="Posts"), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

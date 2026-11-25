@@ -34,7 +34,7 @@ class ConfirmView(discord.ui.View):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("Only the admin who ran the command can confirm this.", ephemeral=True)
         self.stop()
-        await interaction.response.edit_message(embed=simple("⏳ Building your server…", "This can take a few minutes. Please leave the channels alone until it's done.", WARN), view=None)
+        await interaction.response.edit_message(view=simple("⏳ Building your server…", "This can take a few minutes. Please leave the channels alone until it's done.", WARN))
         await self.cog.run_import(interaction, self.parsed, self.skip_existing)
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
@@ -42,7 +42,7 @@ class ConfirmView(discord.ui.View):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("Only the admin who ran the command can cancel this.", ephemeral=True)
         self.stop()
-        await interaction.response.edit_message(embed=simple("Cancelled", "Nothing was changed.", INFO), view=None)
+        await interaction.response.edit_message(view=simple("Cancelled", "Nothing was changed.", INFO))
 
 
 @app_commands.guild_only()
@@ -124,7 +124,7 @@ class Templates(commands.GroupCog, group_name="template", group_description="Cop
         embed.add_field(name="Includes", value="Channels, categories, roles and their permissions, plus server settings", inline=False)
         embed.add_field(name="Doesn't include", value="Messages, members, bots and integrations", inline=False)
         embed.set_footer(text="Anyone with the link can use it. It shows the server's name and structure.")
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.followup.send(view=embed, ephemeral=True)
 
     @app_commands.command(description="Preview a template link: its roles, categories and channels")
     @app_commands.describe(link="A template link like https://discord.new/AbCdEfGh")
@@ -132,7 +132,7 @@ class Templates(commands.GroupCog, group_name="template", group_description="Cop
     async def info(self, interaction: discord.Interaction, link: str):
         await interaction.response.defer(ephemeral=True)
         parsed = parse_template(await self.fetch_template(link))
-        await interaction.followup.send(embed=self.summary_embed(parsed, f"🧩 {parsed['name']}"), ephemeral=True)
+        await interaction.followup.send(view=self.summary_embed(parsed, f"🧩 {parsed['name']}"), ephemeral=True)
 
     async def start_import(self, interaction: discord.Interaction, parsed: dict, skip_existing: bool) -> None:
         """Check limits, then show the preview with Confirm / Cancel buttons."""
@@ -161,7 +161,7 @@ class Templates(commands.GroupCog, group_name="template", group_description="Cop
         embed.add_field(name="What happens", value="\n".join(f"• {n}" for n in notes)[:1024], inline=False)
         if parsed.get("excluded"):
             embed.add_field(name="Left out on purpose", value=("Channels built around cracks, cheats, ban evasion, account selling or leaks: " + ", ".join(parsed["excluded"]))[:1024], inline=False)
-        await interaction.followup.send(embed=embed, view=ConfirmView(self, interaction.user.id, parsed, skip_existing), ephemeral=True)
+        await interaction.followup.send(view=embed.with_view(ConfirmView(self, interaction.user.id, parsed, skip_existing)), ephemeral=True)
 
     @app_commands.command(name="import", description="Copy a template's roles and channels into this server")
     @app_commands.describe(link="A template link like https://discord.new/AbCdEfGh", skip_existing="Skip roles/channels that already exist here (default: yes)")
@@ -301,7 +301,7 @@ class Templates(commands.GroupCog, group_name="template", group_description="Cop
             if channel is None:
                 continue
             try:
-                await channel.send(embed=ui.card(m["title"], m["text"], color=COLOR, section="Templates"))
+                await channel.send(view=ui.card(m["title"], m["text"], color=COLOR, section="Templates"))
                 stats["messages_posted"] += 1
             except discord.HTTPException as e:
                 errors.append(f"message in {m['title']}: {e}")
@@ -311,12 +311,12 @@ class Templates(commands.GroupCog, group_name="template", group_description="Cop
     async def run_import(self, interaction: discord.Interaction, parsed: dict, skip_existing: bool) -> None:
         guild = interaction.guild
         if guild.id in self.running:
-            return await interaction.edit_original_response(embed=simple("Already running", "Another import is already running here.", WARN), view=None)
+            return await interaction.edit_original_response(view=simple("Already running", "Another import is already running here.", WARN))
         self.running.add(guild.id)
 
         async def progress(done: int, total: int) -> None:
             try:
-                await interaction.edit_original_response(embed=simple("⏳ Building your server…", f"{done} of {total} items done.", WARN))
+                await interaction.edit_original_response(view=simple("⏳ Building your server…", f"{done} of {total} items done.", WARN))
             except discord.HTTPException:
                 pass
 
@@ -326,7 +326,7 @@ class Templates(commands.GroupCog, group_name="template", group_description="Cop
             log.exception("Template import failed")
             self.running.discard(guild.id)
             return await interaction.edit_original_response(
-                embed=simple("Something went wrong", "The import stopped part-way. Anything already created is still there. Check my permissions (Manage Roles and Manage Channels) and try again.", DANGER), view=None
+                view=simple("Something went wrong", "The import stopped part-way. Anything already created is still there. Check my permissions (Manage Roles and Manage Channels) and try again.", DANGER).with_view(None)
             )
         self.running.discard(guild.id)
 
@@ -346,7 +346,7 @@ class Templates(commands.GroupCog, group_name="template", group_description="Cop
         embed.add_field(name="Notes", value="\n".join(f"• {n}" for n in notes)[:1000], inline=False)
         if parsed.get("next_steps"):
             embed.add_field(name="Next steps", value="\n".join(f"{i}. {t}" for i, t in enumerate(parsed["next_steps"], 1))[:1000], inline=False)
-        await interaction.edit_original_response(embed=embed, view=None)
+        await interaction.edit_original_response(view=embed)
 
 
 # ── duplicate-channel cleanup ───────────────────────────────────────────────
@@ -424,7 +424,7 @@ class DedupeConfirmView(discord.ui.View):
             item.disabled = True
         summary = f"Removed **{removed}** duplicate channel(s)." + (f" **{failed}** couldn't be deleted." if failed else "")
         await interaction.edit_original_response(
-            embed=simple("✅ Cleanup done", summary, COLOR), view=self)
+            view=simple("✅ Cleanup done", summary, COLOR).with_view(self))
         guild = interaction.guild
         if guild is not None:
             await emit(guild, "server", "🗑️ Duplicate channels removed",
@@ -440,7 +440,7 @@ class DedupeConfirmView(discord.ui.View):
         for item in self.children:
             item.disabled = True
         await interaction.response.edit_message(
-            embed=simple("Cancelled", "No channels were touched.", COLOR), view=self)
+            view=simple("Cancelled", "No channels were touched.", COLOR).with_view(self))
         self.stop()
 
 
@@ -467,7 +467,7 @@ class Dedupe(commands.Cog):
         plans = await _plan_dedupe(guild)
         if not plans:
             await interaction.followup.send(
-                embed=simple("✅ No duplicates found", "Every channel name here is already unique.", COLOR))
+                view=simple("✅ No duplicates found", "Every channel name here is already unique.", COLOR))
             return
         lines = []
         for p in plans[:20]:
@@ -482,7 +482,7 @@ class Dedupe(commands.Cog):
                               "or a tie, whichever is oldest). This can't be undone — double-check before confirming.",
                        WARN)
         view = DedupeConfirmView(interaction.user.id, plans)
-        await interaction.followup.send(embed=embed, view=view)
+        await interaction.followup.send(view=embed.with_view(view))
         view.message = await interaction.original_response()
 
 

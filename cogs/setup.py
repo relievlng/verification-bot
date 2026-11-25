@@ -82,7 +82,7 @@ class Setup(commands.Cog):
             ),
             inline=False,
         )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.followup.send(view=embed, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

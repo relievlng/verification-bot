@@ -178,7 +178,7 @@ class ResultView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
         data = await asyncio.to_thread(make_gif, self.settings.image, self.settings.effect, self.settings.speed, self.settings.size, self.settings.caption)
         await interaction.channel.send(content=f"🎞️ GIF by {interaction.user.mention}", file=discord.File(io.BytesIO(data), filename="creation.gif"), allowed_mentions=discord.AllowedMentions.none())
-        await interaction.followup.send(embed=ui.card("✅ Posted", "Your GIF is in the channel.", color=SUCCESS), ephemeral=True)
+        await interaction.followup.send(view=ui.card("✅ Posted", "Your GIF is in the channel.", color=SUCCESS), ephemeral=True)
 
 
 class GifCreator(commands.Cog):
@@ -213,7 +213,7 @@ class GifCreator(commands.Cog):
         if edit:
             await interaction.edit_original_response(**kwargs)
         else:
-            await interaction.followup.send(embed=embed, file=discord.File(io.BytesIO(data), filename="creation.gif"), view=kwargs["view"], ephemeral=True)
+            await interaction.followup.send(view=embed, file=discord.File(io.BytesIO(data), filename="creation.gif").with_view(kwargs["view"]), ephemeral=True)
 
     @app_commands.command(description="Turn a picture into an animated GIF (a pop-up asks for the details)")
     @app_commands.describe(image="Upload the picture (or paste a link in the pop-up)")

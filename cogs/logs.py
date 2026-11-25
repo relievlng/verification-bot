@@ -147,7 +147,7 @@ class ConfirmLogCleanup(discord.ui.View):
     @discord.ui.button(label="Clean up", emoji="🧹", style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.stop()
-        await interaction.response.edit_message(embed=ui.card("🧹 Cleaning up…", "This takes a few seconds per channel."), view=None)
+        await interaction.response.edit_message(view=ui.card("🧹 Cleaning up…", "This takes a few seconds per channel."))
         emptied, failed, cleared = await self.cog.clean_logs(interaction.guild, self.what, interaction.user)
         lines = []
         if self.what in ("all", "channels"):
@@ -156,12 +156,12 @@ class ConfirmLogCleanup(discord.ui.View):
                 lines.append(f"⚠️ {failed} couldn't be emptied. I need **Manage Channels** there")
         if self.what in ("all", "history"):
             lines.append(f"🗂️ **{cleared:,}** saved log entries cleared (used by `/logs search`)")
-        await interaction.edit_original_response(embed=ui.card("✅ Logs cleaned up", "\n".join(lines), color=SUCCESS, guild=interaction.guild, section="Logs"))
+        await interaction.edit_original_response(view=ui.card("✅ Logs cleaned up", "\n".join(lines), color=SUCCESS, guild=interaction.guild, section="Logs"))
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.stop()
-        await interaction.response.edit_message(embed=ui.card("Cancelled", "Nothing was removed."), view=None)
+        await interaction.response.edit_message(view=ui.card("Cancelled", "Nothing was removed."))
 
 
 # --------------------------------------------------------------------- cog ----
@@ -241,9 +241,9 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         embed, on = await self.dashboard_embed(interaction.guild, note)
         view = LogsDashboard(self, on)
         if edited:
-            await interaction.edit_original_response(embed=embed, view=view)
+            await interaction.edit_original_response(view=embed.with_view(view))
         else:
-            await interaction.response.edit_message(embed=embed, view=view)
+            await interaction.response.edit_message(view=embed.with_view(view))
 
     async def create_log_channels(self, guild: discord.Guild, invoker: discord.Member) -> dict:
         """Make a private '📋 Logs' category with one channel per kind of log, and route each category there."""
@@ -308,7 +308,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
                 continue
             body = "Logging works here ✅\n\n" + "\n".join(f"{emoji} {name}" for emoji, name in cats)
             try:
-                await channel.send(embed=ui.card("🧪 Test log", body, guild=guild, section="Logs"))
+                await channel.send(view=ui.card("🧪 Test log", body, guild=guild, section="Logs"))
                 sent += 1
             except discord.HTTPException:
                 pass
@@ -388,9 +388,10 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             lines.append(f"🗂️ **Clear {history:,} saved log entries** (what `/logs search` looks through).")
         lines.append("\nOld log messages can't be brought back afterwards. Settings, tickets, orders and keys are **not** touched.")
         nothing = (what == "channels" and not channels) or (what == "history" and not history) or (what == "all" and not channels and not history)
+        _card = ui.card("🧹 Log cleanup preview", "\n".join(lines), color=WARN, guild=interaction.guild, section="Logs")
+        _confirm = None if nothing else ConfirmLogCleanup(self, interaction.user.id, what)
         await interaction.response.send_message(
-            embed=ui.card("🧹 Log cleanup preview", "\n".join(lines), color=WARN, guild=interaction.guild, section="Logs"),
-            view=None if nothing else ConfirmLogCleanup(self, interaction.user.id, what), ephemeral=True)
+            view=_card.with_view(_confirm), ephemeral=True)
 
     @app_commands.command(description="Set up logging with one screen (channels, what to log, test)")
     @app_commands.describe(channel="Optional: send logs to this one channel")
@@ -402,7 +403,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             await db.upsert_config(interaction.guild_id, log_channel_id=channel.id)
             note = f"📌 Logs now go to {channel.mention}."
         embed, on = await self.dashboard_embed(interaction.guild, note)
-        await interaction.response.send_message(embed=embed, view=LogsDashboard(self, on), ephemeral=True)
+        await interaction.response.send_message(view=embed.with_view(LogsDashboard(self, on)), ephemeral=True)
 
     @app_commands.command(description="Set up ALL logging in one step (creates private log channels)")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -416,7 +417,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             + f"\n\n{ui.DIVIDER}\nChange anything later with `/logs setup`.",
             guild=interaction.guild, section="Logs",
         )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.followup.send(view=embed, ephemeral=True)
 
     @app_commands.command(description="Turn a log category on or off")
     @app_commands.describe(category="Start typing to search")
@@ -447,7 +448,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
     @app_commands.checks.has_permissions(manage_guild=True)
     async def status(self, interaction: discord.Interaction):
         embed, _ = await self.dashboard_embed(interaction.guild)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(view=embed, ephemeral=True)
 
     @app_commands.command(description="Send a test message to every log channel")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -480,7 +481,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             summary = (r["summary"] or "").replace("\n", " · ")
             lines.append(f"{discord.utils.format_dt(discord.utils.parse_time(r['created_at']), 'R')} {emoji} **{r['title']}**\n　{clip(summary, 120)}")
         title = "📜 History" + (f" for {member.display_name}" if member else "")
-        await interaction.response.send_message(embed=ui.card(title, "\n\n".join(lines), guild=interaction.guild, section="Logs"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(title, "\n\n".join(lines), guild=interaction.guild, section="Logs"), ephemeral=True)
 
     @app_commands.command(description="How much has been logged lately")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -499,7 +500,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             f"{CATEGORY_STYLE.get(r['category'], ('•',))[0]}\n　`{ui.bar(r['w'] / peak)}` **{r['w']:,}** this week · {int(r['d'] or 0):,} today" for r in rows
         ]
         total = sum(r["w"] for r in rows)
-        await interaction.response.send_message(embed=ui.card("📊 Log stats", f"**{total:,}** events in the last 7 days\n\n" + "\n\n".join(lines), guild=interaction.guild, section="Logs"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("📊 Log stats", f"**{total:,}** events in the last 7 days\n\n" + "\n\n".join(lines), guild=interaction.guild, section="Logs"), ephemeral=True)
 
     # ---------------------------------------------------------- members ----
 

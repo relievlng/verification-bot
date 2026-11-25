@@ -162,7 +162,7 @@ class Launch(commands.Cog):
                 ),
                 color=0xFF1744,
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(view=embed, ephemeral=True)
             await _log_launch(self.bot, "🚫 /launch refused — no active license",
                               f"**👤 User** · {name}", DANGER, discord_id)
             return
@@ -199,7 +199,7 @@ class Launch(commands.Cog):
                 url=f"{API_BASE}/tray/install?discord_id={discord_id}",
                 emoji="⬇️",
             ))
-            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+            await interaction.followup.send(view=embed.with_view(view), ephemeral=True)
             await _log_launch(self.bot, "🖥️ /launch — tray agent not registered" if first_time
                               else "🖥️ /launch — tray agent registered but offline",
                               f"**👤 User** · {name}", WARN, discord_id)
@@ -236,7 +236,7 @@ class Launch(commands.Cog):
             await _log_launch(self.bot, "⚠️ /launch — signal failed to send",
                               f"**👤 User** · {name}", WARN, discord_id, hwid)
 
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.followup.send(view=embed, ephemeral=True)
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
@@ -293,7 +293,7 @@ class Launch(commands.Cog):
                 url=f"{API_BASE}/tray/install?discord_id={discord_id}",
                 emoji="⬇️",
             ))
-            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+            await interaction.followup.send(view=embed.with_view(view), ephemeral=True)
             await _log_launch(self.bot, "🖥️ Launch button — tray agent not registered" if first_time
                               else "🖥️ Launch button — tray agent registered but offline",
                               f"**👤 User** · {name}", WARN, discord_id)

@@ -145,18 +145,18 @@ def build_product(guild: discord.Guild, p, shop, rating=None, options=None) -> d
     description = (p["description"] or "").strip()
     body = (description + "\n\n" if description else "") + banner_line
 
-    embed = ui.card(
+    b = ui.card_builder(
         f"💎 {p['name']}", body, color=color,
-        author=(f"{guild.name.upper()} · SHOP", guild.icon.url if guild.icon else None),
+        author=(f"{guild.name.upper()} - SHOP", guild.icon.url if guild.icon else None),
         footer="🔒 " + pick(shop["footer"] if shop else None, DEFAULT_FOOTER),
         image=p["image_url"] or None,
     )
     if options:
-        embed.add_field(name="💰 Options", value="\n".join(f"**{o['label']}** · {money(o['price']) or 'See checkout'}" for o in options), inline=True)
+        b.add_field("💰 Options", "\n".join(f"**{o['label']}** - {money(o['price']) or 'See checkout'}" for o in options), inline=True)
     else:
-        embed.add_field(name="💰 Price", value=f"## {money(p['price']) or 'See checkout'}", inline=True)
-    embed.add_field(name="⭐ Rating", value=ui.rating_line(average, count), inline=True)
-    return embed
+        b.add_field("💰 Price", f"## {money(p['price']) or 'See checkout'}", inline=True)
+    b.add_field("⭐ Rating", ui.rating_line(average, count), inline=True)
+    return b.build()
 
 
 def buy_item(p, shop, option=None):
@@ -362,7 +362,7 @@ class BuyButton(discord.ui.DynamicItem[discord.ui.Button], template=r"shop:buy:(
         embed = ui.card("💳 Ready to check out", f"**{title}**" + (f" · {price}" if price else "") + "\n\n"
                 "Press the button below to open Stripe's secure checkout page.\n"
                 "After you pay, I'll **DM you your Invoice ID**. Keep your DMs open, and you can always look it up later with `/myorders`.", color=COLOR, section="Shop")
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.response.send_message(view=embed.with_view(view), ephemeral=True)
 
 
 class DescriptionModal(discord.ui.Modal):
@@ -414,8 +414,9 @@ class StoreSelect(discord.ui.Select):
             return await interaction.response.send_message("That product isn't available any more.", ephemeral=True)
         products = await db.fetch_all("SELECT * FROM products WHERE guild_id = ? ORDER BY name", (interaction.guild_id,))
         embed, _ = await product_message(interaction.guild, p)
-        await interaction.response.edit_message(embed=embed, view=StoreView(products, await db.get_shop(interaction.guild_id), selected=p,
-                                                                            options=await get_options(p["id"])))
+        await interaction.response.edit_message(
+            view=embed.with_view(StoreView(products, await db.get_shop(interaction.guild_id), selected=p, options=await get_options(p["id"])))
+        )
 
 
 class BackButton(discord.ui.Button):
@@ -425,9 +426,9 @@ class BackButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         products = await db.fetch_all("SELECT * FROM products WHERE guild_id = ? ORDER BY name", (interaction.guild_id,))
         if not products:
-            return await interaction.response.edit_message(embed=ui.card("🛍️ Store", "Nothing for sale yet."), view=None)
+            return await interaction.response.edit_message(view=ui.card("🛍️ Store", "Nothing for sale yet."))
         await interaction.response.edit_message(
-            embed=await catalog_embed(interaction.guild, products), view=StoreView(products, await db.get_shop(interaction.guild_id))
+            view=await catalog_embed(interaction.guild, products).with_view(StoreView(products, await db.get_shop(interaction.guild_id)))
         )
 
 
@@ -527,29 +528,29 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
                       file_problem: bool = False, role_line: Optional[str] = None, key_line: Optional[str] = None) -> discord.Embed:
         """The purchase DM, kept clean: your order ID big and copyable, product / paid / file in three columns, one line on getting help."""
         code = order["code"]
-        embed = ui.card(
+        b = ui.card_builder(
             "✅ Payment received" if order["source"] != "manual" else "✅ Order confirmed",
             f"Thanks for your order from **{guild.name}**! Everything you need is in this one message.\n\n**Your order ID**\n```{code}```",
             color=SUCCESS, thumbnail=guild.icon.url if guild.icon else None,
-            footer=guild.name + (" · 🧪 TEST PAYMENT" if not order["livemode"] else ""),
+            footer=guild.name + (" - 🧪 TEST PAYMENT" if not order["livemode"] else ""),
         )
-        embed.add_field(name="📦 Product", value=order["product_name"], inline=True)
+        b.add_field("📦 Product", order["product_name"], inline=True)
         if money(order["amount"]):
-            embed.add_field(name="💰 Paid", value=money(order["amount"]), inline=True)
+            b.add_field("💰 Paid", money(order["amount"]), inline=True)
         if file_problem:
-            embed.add_field(name="📥 Your file", value="⚠️ Couldn't attach it. Send your ID to support and we'll send it right away.", inline=True)
+            b.add_field("📥 Your file", "⚠️ Couldn't attach it. Send your ID to support and we'll send it right away.", inline=True)
         elif file_line:
-            embed.add_field(name="📥 Your file", value=file_line, inline=True)
+            b.add_field("📥 Your file", file_line, inline=True)
         if role_line:
-            embed.add_field(name="🎭 Your role", value=role_line, inline=True)
+            b.add_field("🎭 Your role", role_line, inline=True)
         if key_line:
-            embed.add_field(name="🔑 Your macro key", value=key_line, inline=False)
+            b.add_field("🔑 Your macro key", key_line, inline=False)
         where = f" in <#{support_channel_id}>" if support_channel_id else ""
         help_text = f"**Just use this ID.** Send `{code}` to support{where} or to any staff member. That's all we need."
         if shop and shop["receipt_note"]:
             help_text += f"\n{shop['receipt_note']}"
-        embed.add_field(name="🎫 Need help?", value=help_text, inline=False)
-        return embed
+        b.add_field("🎫 Need help?", help_text, inline=False)
+        return b.build()
 
     async def deliver_order(self, guild: discord.Guild, user, order, product, shop, role_status: Optional[str] = None) -> tuple:
         """DM the buyer ONE message: receipt + Invoice ID + 'just use this ID for support' + their file. Returns (delivered, file_status)."""
@@ -570,7 +571,7 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
             linked = stored["size"] > ATTACH_LIMIT
             line = f"`{stored['filename']}`\n{human_size(stored['size'])} · " + (
                 f"press **Download** below (private, valid {LINK_SECONDS // 60} min)" if linked else "attached below")
-            payload = await file_payload(user, guild, stored, embed=self.receipt_embed(guild, order, shop, support_channel, line, role_line=role_line, key_line=key_line), support_channel_id=support_channel)
+            payload = await file_payload(user, guild, stored, view=self.receipt_embed(guild, order, shop, support_channel, line, role_line=role_line, key_line=key_line), support_channel_id=support_channel)
         # ── build receipt view (Download + Launch + Support buttons) ─────────────
         # Launch only works once XZX Tray is installed and running, so the
         # download link is always offered here too, rather than only
@@ -711,7 +712,7 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
         try:
             message = await channel.fetch_message(p["message_id"])
             embed, view = await product_message(guild, p)
-            await message.edit(embed=embed, view=view)
+            await message.edit(view=embed.with_view(view))
             return True
         except discord.HTTPException:
             return False
@@ -809,9 +810,9 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
             guild=guild, section="Shop", footer="Products have their own colour and button text too: see /shop edit",
         )
         if updates:
-            await interaction.followup.send(changed, embed=embed, ephemeral=True)
+            await interaction.followup.send(changed, view=embed, ephemeral=True)
         else:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.response.send_message(view=embed, ephemeral=True)
 
     @app_commands.command(description="Set up purchase DMs (Invoice ID + 'open a ticket' message)")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -828,7 +829,7 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
             "Test mode and live mode have **separate** webhook endpoints and secrets. To use both, put them in one variable separated by a comma."
         )
         embed = ui.card("📬 Purchase DMs", f"**Status:** {status}\n\n{steps}", footer="Menu names in Stripe and Railway may differ slightly.")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(view=embed, ephemeral=True)
 
     @app_commands.command(description="Update all posted product cards (e.g. after turning on purchase DMs)")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -844,7 +845,7 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
         o = await find_order(interaction.guild_id, invoice_id)
         if not o:
             raise UserError(f"I can't find an order with ID `{invoice_id.strip().upper()}` in this server.")
-        await interaction.response.send_message(embed=order_embed(o), ephemeral=True)
+        await interaction.response.send_message(view=order_embed(o), ephemeral=True)
 
     @app_commands.command(description="Create an order ID for a sale made outside Stripe and send the buyer their file")
     @app_commands.describe(
@@ -912,7 +913,7 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
             "⚠️ The receipt went out but the file didn't. Use `/shop resend`." if send and delivered else
             ("📪 I couldn't DM them (DMs closed?). Use `/shop resend` once they open DMs." if send else "Nothing was sent yet. Use `/shop resend` when you're ready."))
         await interaction.followup.send(
-            embed=ui.card("🧾 Order created", ui.kv(("🧾 Invoice ID", f"`{code}`"), ("👤 Buyer", member.mention), ("📦 Product", p["name"]), ("💰 Amount", money(order["amount"]) or "—"),
+            view=ui.card("🧾 Order created", ui.kv(("🧾 Invoice ID", f"`{code}`"), ("👤 Buyer", member.mention), ("📦 Product", p["name"]), ("💰 Amount", money(order["amount"]) or "—"),
                                                    ("📥 File", "Yes" if order["file_id"] else "None attached"),
                                                    ("🔑 Macro key", f"`{order['license_code']}`" if order["license_code"] else None)) + f"\n\n{status}", color=SUCCESS, guild=interaction.guild, section="Shop"),
             ephemeral=True,
@@ -946,7 +947,7 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
             done.append(f"🔑 Key `{order['license_code']}` disabled")
         await emit(guild, "shop", "↩️ Order revoked", ui.kv(("🧾 Invoice ID", f"`{order['code']}`"), ("👤 Buyer", f"<@{order['user_id']}>"), ("🛡️ By", interaction.user.mention))
                    + "\n" + "\n".join(done), subject=order["user_id"])
-        await interaction.response.send_message(embed=ui.card("↩️ Order revoked", f"Order `{order['code']}` for <@{order['user_id']}>:\n" + "\n".join(done), color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("↩️ Order revoked", f"Order `{order['code']}` for <@{order['user_id']}>:\n" + "\n".join(done), color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="Send an order's receipt and file to the buyer again")
     @app_commands.describe(invoice_id="The order ID, e.g. INV-3F9A1C2E")
@@ -982,7 +983,7 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
             card = ui.card("⚠️ Receipt sent, file not sent", "The file couldn't be attached (is it still stored? run `/files list`).", color=WARN)
         else:
             card = ui.card("📪 Couldn't DM them", "Their DMs are closed. Ask them to allow DMs from server members, then try again.", color=WARN)
-        await interaction.followup.send(embed=card, ephemeral=True)
+        await interaction.followup.send(view=card, ephemeral=True)
 
     @app_commands.command(description="Recent orders (optionally for one member)")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -997,13 +998,13 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
             f"`{o['code']}` · <@{o['user_id']}> · **{o['product_name']}** · {o['amount'] or '—'}{' · 🧪' if not o['livemode'] else ''} · {'✋ <@' + str(o['processed_by']) + '>' if o['fulfillment'] == 'manual' and o['processed_by'] else '🤖 auto'}"
             for o in rows
         ]
-        await interaction.response.send_message(embed=ui.card("🧾 Recent orders", "\n".join(lines), guild=interaction.guild, section="Shop"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🧾 Recent orders", "\n".join(lines), guild=interaction.guild, section="Shop"), ephemeral=True)
 
     @app_commands.command(description="How to get a Stripe Payment Link")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def howto(self, interaction: discord.Interaction):
         await interaction.response.send_message(
-            embed=ui.card("💳 Getting your Stripe link", HOWTO, guild=interaction.guild, section="Shop"), ephemeral=True
+            view=ui.card("💳 Getting your Stripe link", HOWTO, guild=interaction.guild, section="Shop"), ephemeral=True
         )
 
     @app_commands.command(description="Add a product that sells through a Stripe Payment Link")
@@ -1053,7 +1054,7 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
         nxt = "Publish it with `/shop post`." if link else "Now add its payment options with `/shop addoption`, then `/shop post` it."
         await interaction.response.send_message(
             f"✅ Added **{p['name']}**. Here's how it looks. {nxt}{test_note(link)}",
-            embed=embed, view=view, ephemeral=True,
+            view=embed.with_view(view), ephemeral=True,
         )
 
     @app_commands.command(description="Change a product's details")
@@ -1159,7 +1160,7 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
         await interaction.response.defer(ephemeral=True)
         await self.delete_post(guild, p)  # replace any older card for this product
         embed, view = await product_message(guild, p)
-        message = await target.send(embed=embed, view=view)
+        message = await target.send(view=embed.with_view(view))
         await db.update_product(p["id"], channel_id=target.id, message_id=message.id)
         await interaction.followup.send(f"✅ Posted in {target.mention}: {message.jump_url}{test_note(p['buy_url'])}", ephemeral=True)
 
@@ -1169,7 +1170,7 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
     async def preview(self, interaction: discord.Interaction, product: Optional[str] = None):
         p = await resolve_product(interaction, product)
         embed, view = await product_message(interaction.guild, p)
-        await interaction.response.send_message(f"Preview{test_note(p['buy_url'])}", embed=embed, view=view, ephemeral=True)
+        await interaction.response.send_message(f"Preview{test_note(p['buy_url'])}", view=embed.with_view(view), ephemeral=True)
 
     @app_commands.command(description="List your products")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1185,7 +1186,7 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
             for o in await get_options(p["id"]):
                 key = "" if o["license_days"] is None else f" · 🔑 {length_label(o['license_days'])}"
                 lines.append(f"　↳ {o['label']} · {money(o['price']) or '⚠️ no price'}{key}{' · ⚠️ test link' if is_test_link(o['buy_url']) else ''}")
-        await interaction.response.send_message(embed=ui.card("🛒 Products", "\n".join(lines), guild=interaction.guild, section="Shop"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🛒 Products", "\n".join(lines), guild=interaction.guild, section="Shop"), ephemeral=True)
 
     @app_commands.command(description="Delete a product (and its posted card)")
     @app_commands.autocomplete(product=product_autocomplete)
@@ -1233,7 +1234,7 @@ class Shop(commands.GroupCog, group_name="shop", group_description="Sell product
         await interaction.response.send_message(
             f"✅ {verb} option **{name}** ({check_price(price)}, gives {key}) on **{p['name']}**."
             + (" The posted card was updated." if refreshed else " Publish it with `/shop post`.") + test_note(link),
-            embed=embed, view=view, ephemeral=True)
+            view=embed.with_view(view), ephemeral=True)
 
     @app_commands.command(description="Remove a payment option from a product")
     @app_commands.autocomplete(product=product_autocomplete, option=option_autocomplete)
@@ -1259,7 +1260,7 @@ class BuyCog(commands.Cog):
     async def buy(self, interaction: discord.Interaction, product: Optional[str] = None, public: bool = False):
         p = await resolve_product(interaction, product)
         embed, view = await product_message(interaction.guild, p)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=not public)
+        await interaction.response.send_message(view=embed.with_view(view), ephemeral=not public)
 
     @app_commands.command(description="Browse everything for sale")
     async def store(self, interaction: discord.Interaction):
@@ -1268,7 +1269,7 @@ class BuyCog(commands.Cog):
             raise UserError("There's nothing for sale yet. Check back soon!")
         shop = await db.get_shop(interaction.guild_id)
         await interaction.response.send_message(
-            embed=await catalog_embed(interaction.guild, products), view=StoreView(products, shop), ephemeral=True
+            view=await catalog_embed(interaction.guild, products).with_view(StoreView(products, shop)), ephemeral=True
         )
 
     @app_commands.command(description="See your past purchases and Invoice IDs")
@@ -1285,7 +1286,7 @@ class BuyCog(commands.Cog):
         lines = [f"`{o['code']}` · **{o['product_name']}** · {o['amount'] or '—'} · {discord.utils.format_dt(discord.utils.parse_time(o['created_at']), 'd')}"
                  + (f"\n  🔑 `{o['license_code']}`" if o["license_code"] else "") for o in rows]
         embed = ui.card("🧾 Your purchases", "\n".join(lines) + f"\n\n{ui.DIVIDER}\n🎫 **Need help? Just use your ID.** {ticket}, that's all staff need to find your order.", guild=interaction.guild, section="Shop")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(view=embed, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

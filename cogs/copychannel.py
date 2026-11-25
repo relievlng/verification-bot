@@ -79,7 +79,8 @@ class CopyChannel(commands.Cog):
     def header_embed(self, message, show_author: bool, content: str) -> Optional[discord.Embed]:
         if not content and not show_author:
             return None
-        embed = ui.card(None, content or None)
+        # Keep as legacy Embed for copychannel since we mix with copied_embeds (rich Embed list)
+        embed = discord.Embed(description=content or None)
         if show_author:
             embed.set_author(name=message.author.display_name, icon_url=message.author.display_avatar.url)
             embed.timestamp = message.created_at
@@ -108,7 +109,8 @@ class CopyChannel(commands.Cog):
         if too_big:
             # Too large to re-upload: keep a link to the original so nothing is lost (it works while the source message exists)
             lines = [f"[{attachments[i].filename}]({attachments[i].url}) · {human_size(attachments[i].size)}" for i in too_big]
-            header = header or ui.card(None, None)
+            if header is None:
+                header = discord.Embed()
             header.add_field(name="⚠️ Too big to copy", value="\n".join(lines)[:1000], inline=False)
             job.too_big += [attachments[i].filename for i in too_big]
         sent_any = False
@@ -156,9 +158,10 @@ class CopyChannel(commands.Cog):
         extra = {"color": SUCCESS} if finished and not job.cancelled else {}
         return ui.card(title, body, section="Channel copy", **extra)
 
-    async def update(self, interaction: discord.Interaction, embed: discord.Embed, view=None) -> bool:
+    async def update(self, interaction: discord.Interaction, embed: ui.CardView, view=None) -> bool:
         try:
-            await interaction.edit_original_response(embed=embed, view=view)
+            merged = embed.with_view(view) if view else embed
+            await interaction.edit_original_response(view=merged)
             return True
         except discord.HTTPException:
             return False  # Discord only lets a command edit its reply for 15 minutes
@@ -233,7 +236,7 @@ class CopyChannel(commands.Cog):
         self.running[guild.id] = job
         view = StopView(job)
         try:
-            await destination.send(embed=ui.card("📦 Copied channel", f"Messages from {source.mention}, oldest first.", footer=f"Copied by {interaction.user.display_name}"), allowed_mentions=discord.AllowedMentions.none())
+            await destination.send(view=ui.card("📦 Copied channel", f"Messages from {source.mention}, oldest first.", footer=f"Copied by {interaction.user.display_name}"), allowed_mentions=discord.AllowedMentions.none())
             last_update = 0.0
             for message in picked:
                 if job.cancelled:
@@ -252,7 +255,7 @@ class CopyChannel(commands.Cog):
             self.running.pop(guild.id, None)
         summary = self.progress_embed(job, source, destination, finished=True)
         if not await self.update(interaction, summary, None):
-            await interaction.channel.send(embed=summary)
+            await interaction.channel.send(view=summary)
         await emit(
             guild, "server", "Channel copied",
             ui.kv(("🛡️ By", interaction.user.mention), ("📤 From", source.mention), ("📥 To", destination.mention), ("💬 Messages", f"{job.messages:,}"), ("📎 Files", f"{job.files:,}")),

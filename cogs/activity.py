@@ -65,7 +65,7 @@ class Activity(commands.GroupCog, group_name="messages", group_description="Mess
         top = await db.fetch_all("SELECT channel_id, count FROM message_counts WHERE guild_id = ? AND user_id = ? ORDER BY count DESC LIMIT 5", (interaction.guild_id, member.id))
         lines = [f"<#{r['channel_id']}> · **{r['count']:,}**" for r in top]
         body = f"# {total:,}\n**messages counted**\n\n" + ("**Most active in**\n" + "\n".join(lines) if lines else "Nothing counted yet.") + "\n\n*Counting started when message tracking was switched on.*"
-        await interaction.response.send_message(embed=ui.card(f"💬 {member.display_name}'s messages", body, guild=interaction.guild, thumbnail=member.display_avatar.url, section="Activity"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"💬 {member.display_name}'s messages", body, guild=interaction.guild, thumbnail=member.display_avatar.url, section="Activity"), ephemeral=True)
 
     @app_commands.command(description="The most active members")
     async def top(self, interaction: discord.Interaction):
@@ -74,7 +74,7 @@ class Activity(commands.GroupCog, group_name="messages", group_description="Mess
         if not rows:
             raise UserError("No messages have been counted yet.")
         lines = [f"{ui.rank(i)} <@{r['user_id']}> · **{r['n']:,}** messages" for i, r in enumerate(rows)]
-        await interaction.response.send_message(embed=ui.card("🏆 Most active", "\n".join(lines), guild=interaction.guild, section="Activity"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🏆 Most active", "\n".join(lines), guild=interaction.guild, section="Activity"), ephemeral=True)
 
     @app_commands.command(description="Staff: reset someone's message count")
     @app_commands.describe(member="Whose count to reset")
@@ -82,7 +82,7 @@ class Activity(commands.GroupCog, group_name="messages", group_description="Mess
     async def reset(self, interaction: discord.Interaction, member: discord.Member):
         await self.flush()
         await db.execute("DELETE FROM message_counts WHERE guild_id = ? AND user_id = ?", (interaction.guild_id, member.id))
-        await interaction.response.send_message(embed=ui.card("✅ Reset", f"{member.mention}'s message count is back to 0.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("✅ Reset", f"{member.mention}'s message count is back to 0.", color=SUCCESS), ephemeral=True)
         await emit(interaction.guild, "staff", "Message count reset", ui.kv(("👤 Member", member.mention), ("🛡️ By", interaction.user.mention)), subject=member.id)
 
 

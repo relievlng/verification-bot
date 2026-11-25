@@ -163,7 +163,7 @@ class CategoryLinkView(discord.ui.View):
             await interaction.edit_original_response(content=f"⚠️ {e}", view=None)
             self.stop()
             return
-        await interaction.edit_original_response(content=None, embed=embed, view=None)
+        await interaction.edit_original_response(content=None, view=embed)
         self.stop()
 
     async def on_timeout(self):
@@ -326,7 +326,7 @@ class ServerLink(commands.Cog):
         if not main_guild.categories:
             # nothing to choose between — mirror the (flat) server straight away
             result = await self._run_sync(target_guild, main_guild, None, interaction.user.id)
-            await interaction.followup.send(embed=result, ephemeral=True)
+            await interaction.followup.send(view=result, ephemeral=True)
             return
 
         view = CategoryLinkView(self, interaction.user.id, main_guild, target_guild)
@@ -415,7 +415,7 @@ class ServerLink(commands.Cog):
             raise UserError("This server isn't linked to a main server.")
         main_guild = self.bot.get_guild(link["main_guild_id"])
         await db.delete_server_link(interaction.guild.id)
-        await interaction.response.send_message(embed=simple(
+        await interaction.response.send_message(view=simple(
             "Unlinked", f"This server will no longer mirror channel changes from **{main_guild.name if main_guild else 'the main server'}**. "
             "Channels already created here are left as they are.", COLOR,
         ), ephemeral=True)
@@ -426,7 +426,7 @@ class ServerLink(commands.Cog):
     async def linkstatus(self, interaction: discord.Interaction):
         link = await db.get_server_link(interaction.guild.id)
         if not link:
-            return await interaction.response.send_message(embed=simple("Not linked", "This server isn't mirroring any main server. Use `/linkserver` to set it up.", INFO), ephemeral=True)
+            return await interaction.response.send_message(view=simple("Not linked", "This server isn't mirroring any main server. Use `/linkserver` to set it up.", INFO), ephemeral=True)
         main_guild = self.bot.get_guild(link["main_guild_id"])
         mapped = len(await db.get_channel_map(interaction.guild.id))
         category_ids = db.parse_category_ids(link["category_ids"])
@@ -439,7 +439,7 @@ class ServerLink(commands.Cog):
             scope_line = f"Scope: **{len(category_ids)}** categor{'y' if len(category_ids) == 1 else 'ies'}" + (
                 f" ({', '.join(names)})" if names else ""
             ) + "."
-        await interaction.response.send_message(embed=simple(
+        await interaction.response.send_message(view=simple(
             "🔗 Linked",
             f"Mirroring **{main_guild.name if main_guild else link['main_guild_id']}** live. "
             f"**{mapped}** channel(s)/category(s) tracked so far.\n{scope_line}",
@@ -485,7 +485,7 @@ class ServerLink(commands.Cog):
             noun = "channel/category" if created == 1 else "channels/categories"
             text = (f"Caught up with **{main_guild.name}** ({scope_text}). Linked/created **{created}** new {noun} — "
                     "existing channels with matching names were reused, not duplicated.")
-        await interaction.followup.send(embed=simple("🔄 Refreshed", text, COLOR), ephemeral=True)
+        await interaction.followup.send(view=simple("🔄 Refreshed", text, COLOR), ephemeral=True)
 
     # --------------------------------------------------------- forwarding ----
 

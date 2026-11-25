@@ -319,7 +319,7 @@ async def _dm_user(bot, user_id: Optional[int], embed: discord.Embed) -> bool:
         except discord.HTTPException:
             return False
     try:
-        await user.send(embed=embed)
+        await user.send(view=embed)
         return True
     except discord.HTTPException:
         return False
@@ -350,7 +350,7 @@ class CopyDisableButton(discord.ui.DynamicItem[discord.ui.Button], template=r"co
         embed = interaction.message.embeds[0] if interaction.message.embeds else ui.card("Copy review", "", color=DANGER)
         embed.set_footer(text=f"⛔ Disabled by {interaction.user} · copies self-destruct on next check · "
                               + ("owner DM'd" if dmed else "owner not DM'd (DMs closed / no account)"))
-        await interaction.response.edit_message(embed=embed, view=None)
+        await interaction.response.edit_message(view=embed)
 
 
 class CopyIgnoreButton(discord.ui.DynamicItem[discord.ui.Button], template=r"copyguard:keep:(?P<lid>[0-9]+)"):
@@ -369,7 +369,7 @@ class CopyIgnoreButton(discord.ui.DynamicItem[discord.ui.Button], template=r"cop
             return await interaction.response.send_message("Only staff can action this.", ephemeral=True)
         embed = interaction.message.embeds[0] if interaction.message.embeds else ui.card("Copy review", "")
         embed.set_footer(text=f"✓ Dismissed by {interaction.user} · key left active")
-        await interaction.response.edit_message(embed=embed, view=None)
+        await interaction.response.edit_message(view=embed)
 
 
 def copy_review_view(license_id: int) -> discord.ui.View:
@@ -403,7 +403,7 @@ class ReenableKeyButton(discord.ui.DynamicItem[discord.ui.Button], template=r"sh
         embed = interaction.message.embeds[0] if interaction.message.embeds else ui.card("Shared key", "", color=DANGER)
         embed.set_footer(text=f"✅ Re-enabled by {interaction.user} · device lock cleared · "
                               + ("owner DM'd" if dmed else "owner not DM'd (DMs closed / no account)"))
-        await interaction.response.edit_message(embed=embed, view=None)
+        await interaction.response.edit_message(view=embed)
 
 
 def shared_lock_view(license_id: int) -> discord.ui.View:
@@ -446,15 +446,14 @@ class ConfirmDeleteAllView(discord.ui.View):
             pass
         self.stop()
         await interaction.response.edit_message(
-            embed=ui.card("🗑️ Keys deleted",
-                          f"Deleted all {len(self.rows)} key(s) for {self.member.mention}.", color=SUCCESS),
-            view=None)
+            view=ui.card("🗑️ Keys deleted",
+                          f"Deleted all {len(self.rows)} key(s) for {self.member.mention}.", color=SUCCESS))
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.stop()
         await interaction.response.edit_message(
-            embed=ui.card("Cancelled", "No keys were deleted.", color=WARN), view=None)
+            view=ui.card("Cancelled", "No keys were deleted.", color=WARN))
 
     async def on_timeout(self):
         if self.message is not None:
@@ -526,14 +525,13 @@ class DeleteSelectView(discord.ui.View):
             pass
         self.stop()
         await interaction.response.edit_message(
-            embed=ui.card("🗑️ Keys deleted",
-                          f"Deleted {len(rows)} key(s) for {self.member.mention}:\n{codes}", color=SUCCESS),
-            view=None)
+            view=ui.card("🗑️ Keys deleted",
+                          f"Deleted {len(rows)} key(s) for {self.member.mention}:\n{codes}", color=SUCCESS))
 
     async def _on_cancel(self, interaction: discord.Interaction):
         self.stop()
         await interaction.response.edit_message(
-            embed=ui.card("Cancelled", "No keys were deleted.", color=WARN), view=None)
+            view=ui.card("Cancelled", "No keys were deleted.", color=WARN))
 
     async def on_timeout(self):
         if self.message is not None:
@@ -607,7 +605,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
             except discord.HTTPException:
                 return False
         try:
-            await user.send(embed=embed)
+            await user.send(view=embed)
             return True
         except discord.HTTPException:
             return False
@@ -1100,7 +1098,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
                     emoji="🚀",
                     custom_id=f"launch_xzx:{member.id}",
                 ))
-                await member.send(embed=embed, view=key_view)
+                await member.send(view=embed.with_view(key_view))
                 dm = f"\n📬 Sent to {member.mention} by DM."
             except discord.HTTPException:
                 dm = f"\n📪 Couldn't DM {member.mention} (DMs closed). Give them the key yourself."
@@ -1108,14 +1106,14 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
                    ui.kv(("Macro", which), ("Count", str(count)), ("Length", length), ("For", member.mention if member else None), ("By", interaction.user.mention), ("Note", note)),
                    SUCCESS, subject=member.id if member else None)
         body = "\n".join(f"`{c}`" for c in codes)
-        await interaction.followup.send(embed=ui.card(f"🔑 {count} {macro_name(macro)} key{'s' if count > 1 else ''} made · {length}", body + dm, color=SUCCESS,
+        await interaction.followup.send(view=ui.card(f"🔑 {count} {macro_name(macro)} key{'s' if count > 1 else ''} made · {length}", body + dm, color=SUCCESS,
                                                       guild=interaction.guild, section="Keys"), ephemeral=True)
 
     @app_commands.command(description="Look up a key")
     @app_commands.autocomplete(code=key_autocomplete)
     async def info(self, interaction: discord.Interaction, code: str):
         row = await find_license(code)
-        await interaction.response.send_message(embed=license_embed(row, interaction.guild), ephemeral=True)
+        await interaction.response.send_message(view=license_embed(row, interaction.guild), ephemeral=True)
 
     @app_commands.command(description="Recent keys and which macro each is for")
     @app_commands.describe(member="Only this member's keys", status="Filter by status", macro="Only keys for this macro")
@@ -1147,7 +1145,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
                  f"{('<@' + str(r['user_id']) + '>') if r['user_id'] else (r['owner_name'] or 'unassigned')} · {expiry_text(r)}" for r in rows[:20]]
         more = f"\n…and {len(rows) - 20} more" if len(rows) > 20 else ""
         await interaction.response.send_message(
-            embed=ui.card("🔑 Keys", "\n".join(lines) + more, guild=interaction.guild,
+            view=ui.card("🔑 Keys", "\n".join(lines) + more, guild=interaction.guild,
                           footer=f"{total['c']:,} keys in total · {total['a']:,} enabled" + (f"\n{per_macro}" if per_macro else "")),
             ephemeral=True)
 
@@ -1199,12 +1197,12 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
         for i, pg in enumerate(shown):
             emb = ui.card(f"🔑 All keys ({i + 1}/{len(shown)})", pg, guild=interaction.guild, footer=foot)
             if i == 0:
-                await interaction.response.send_message(embed=emb, ephemeral=True)
+                await interaction.response.send_message(view=emb, ephemeral=True)
             else:
-                await interaction.followup.send(embed=emb, ephemeral=True)
+                await interaction.followup.send(view=emb, ephemeral=True)
         if len(pages) > 12:
             await interaction.followup.send(
-                embed=ui.card("…more keys", f"{len(rows):,} keys matched - showing the first {12 * 12}. "
+                view=ui.card("…more keys", f"{len(rows):,} keys matched - showing the first {12 * 12}. "
                               "Narrow it with the `macro` or `status` options, or use `/key info` for one key.",
                               guild=interaction.guild),
                 ephemeral=True)
@@ -1229,7 +1227,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
         embed = license_embed(row, interaction.guild)
         if dm:
             embed.set_footer(text=dm.strip())
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(view=embed, ephemeral=True)
 
     @app_commands.command(description="Stop a key from working (e.g. refund or sharing). Anyone using it is logged out within a minute")
     @app_commands.autocomplete(code=key_autocomplete)
@@ -1253,7 +1251,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
                    subject=row["user_id"])
         row = await find_license(code)
         await interaction.response.send_message(
-            embed=ui.card("🖥️ Device unlocked", f"`{row['code']}` can now be used on a new device. The next PC to log in will lock it.",
+            view=ui.card("🖥️ Device unlocked", f"`{row['code']}` can now be used on a new device. The next PC to log in will lock it.",
                           color=SUCCESS, guild=interaction.guild, section="Keys"), ephemeral=True)
 
     @app_commands.command(description="Add days to a key (or make it lifetime)")
@@ -1276,7 +1274,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
         await db.execute("UPDATE licenses SET expiry_notified = 0 WHERE id = ?", (row["id"],))
         await log_event(row["id"], "extended", "lifetime" if lifetime else f"+{days}d")
         row = await find_license(code)
-        await interaction.response.send_message(embed=license_embed(row, interaction.guild), ephemeral=True)
+        await interaction.response.send_message(view=license_embed(row, interaction.guild), ephemeral=True)
 
     @app_commands.command(description="Change which macro a key is for")
     @app_commands.describe(macro="The macro this key should work in")
@@ -1290,7 +1288,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
                    ui.kv(("Key", f"`{row['code']}`"), ("From", macro_label(row["macro"])), ("To", macro_label(clean_macro(macro))),
                          ("By", interaction.user.mention)), subject=row["user_id"])
         row = await find_license(code)
-        await interaction.response.send_message(embed=license_embed(row, interaction.guild), ephemeral=True)
+        await interaction.response.send_message(view=license_embed(row, interaction.guild), ephemeral=True)
 
     @app_commands.command(description="Give a key to a member (or move it to someone else)")
     @app_commands.autocomplete(code=key_autocomplete)
@@ -1299,14 +1297,14 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
         await db.execute("UPDATE licenses SET user_id = ? WHERE id = ?", (member.id, row["id"]))
         await log_event(row["id"], "assigned", str(member.id))
         row = await find_license(code)
-        await interaction.response.send_message(embed=license_embed(row, interaction.guild), ephemeral=True)
+        await interaction.response.send_message(view=license_embed(row, interaction.guild), ephemeral=True)
 
     @app_commands.command(description="Delete a key for good")
     @app_commands.autocomplete(code=key_autocomplete)
     async def delete(self, interaction: discord.Interaction, code: str):
         row = await find_license(code)
         await _delete_licenses([row])
-        await interaction.response.send_message(embed=ui.card("🗑️ Key deleted", f"`{row['code']}` no longer exists.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🗑️ Key deleted", f"`{row['code']}` no longer exists.", color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="Delete ALL of a member's keys at once (asks for confirmation first)")
     @app_commands.describe(member="Delete every key this member owns")
@@ -1319,9 +1317,9 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
         more = f"\n…and {len(rows) - 25} more" if len(rows) > 25 else ""
         view = ConfirmDeleteAllView(interaction.user.id, member, rows, self.bot)
         await interaction.response.send_message(
-            embed=ui.card(f"⚠️ Delete all {len(rows)} key(s) for {member}?",
-                          lines + more + "\n\n**This cannot be undone.**", color=DANGER),
-            view=view, ephemeral=True)
+            view=ui.card(f"⚠️ Delete all {len(rows)} key(s) for {member}?",
+                          lines + more + "\n\n**This cannot be undone.**", color=DANGER).with_view(view),
+            ephemeral=True)
         view.message = await interaction.original_response()
 
     @app_commands.command(description="Pick exactly which of a member's keys to delete")
@@ -1334,9 +1332,9 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
                if len(rows) > 25 else "")
         view = DeleteSelectView(interaction.user.id, member, rows, self.bot)
         await interaction.response.send_message(
-            embed=ui.card(f"🔑 {member}'s keys", f"Pick which key(s) to delete from the dropdown below.{note}",
-                          color=WARN),
-            view=view, ephemeral=True)
+            view=ui.card(f"🔑 {member}'s keys", f"Pick which key(s) to delete from the dropdown below.{note}",
+                          color=WARN).with_view(view),
+            ephemeral=True)
         view.message = await interaction.original_response()
 
     @app_commands.command(description="Bring over keys from the old license website (its CSV export)")
@@ -1376,7 +1374,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
             added += 1
         await log_event(None, "imported", f"{added} keys from {csv_file.filename}")
         await interaction.followup.send(
-            embed=ui.card("📥 Keys imported", ui.kv(("Added", f"{added:,}"), ("Skipped (already here or blank)", f"{skipped:,}"))
+            view=ui.card("📥 Keys imported", ui.kv(("Added", f"{added:,}"), ("Skipped (already here or blank)", f"{skipped:,}"))
                           + "\n\nThose keys work in the macro straight away. Once you've checked, you can shut the old website down.",
                           color=SUCCESS, guild=interaction.guild, section="Keys"), ephemeral=True)
 
@@ -1407,7 +1405,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
                        "**3.** Copy the **Client Secret** (Reset Secret if it's hidden).\n"
                        "**4.** Railway → this bot → **Variables** → add `DISCORD_CLIENT_SECRET` = that secret, then redeploy.")
         embed.add_field(name="🔗 Discord linking", value=linking, inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(view=embed, ephemeral=True)
 
 
 @app_commands.guild_only()
@@ -1419,7 +1417,7 @@ class MyKeys(commands.Cog):
             raise UserError("You don't have any keys yet. Buy one from the shop with `/store`.")
         lines = [f"```{r['code']}```**{macro_label(r['macro'])}** · {status_text(r)} · {expiry_text(r)}" for r in rows]
         await interaction.response.send_message(
-            embed=ui.card("🔑 Your keys", "\n".join(lines) + "\nPaste a key into the macro's login screen.", guild=interaction.guild, section="Keys"),
+            view=ui.card("🔑 Your keys", "\n".join(lines) + "\nPaste a key into the macro's login screen.", guild=interaction.guild, section="Keys"),
             ephemeral=True)
 
 

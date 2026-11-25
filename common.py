@@ -3,7 +3,7 @@ import re
 
 import discord
 
-# Theme: "black" (default) makes every embed a clean black card. Set the variable EMBED_THEME=color to get status colours back.
+# Theme: "black" (default) makes every card a clean black card. Set the variable EMBED_THEME=color to get status colours back.
 THEME = os.getenv("EMBED_THEME", "black").strip().lower()
 BLACK = discord.Color.from_rgb(1, 1, 1)  # not 0,0,0: Discord treats pure black as "no colour" and draws a grey bar
 if THEME == "color":
@@ -17,6 +17,30 @@ if THEME == "color":
 else:
     COLOR = ACCENT = SUCCESS = WARN = DANGER = INFO = BLACK
     CARD_ACCENT_HEX = "141414"  # the welcome banner image: near-black gradient
+
+# ---------------------------------------------------------------- Custom emojis ----
+# Replace the placeholder IDs with your real custom emoji IDs.
+# Format: "<:name:ID>" for static, "<a:name:ID>" for animated.
+E_CHECK  = "<:xzx_check:1234567890000001>"   # green checkmark
+E_CROSS  = "<:xzx_cross:1234567890000002>"   # red X
+E_WARN   = "<:xzx_warn:1234567890000003>"    # yellow warning
+E_INFO   = "<:xzx_info:1234567890000004>"    # blue info
+E_STAR   = "<:xzx_star:1234567890000005>"    # star / rating
+E_TICKET = "<:xzx_ticket:1234567890000006>"  # ticket / support
+E_CROWN  = "<:xzx_crown:1234567890000007>"   # crown / premium
+E_LOCK   = "<:xzx_lock:1234567890000008>"    # lock / security
+E_KEY    = "<:xzx_key:1234567890000009>"     # key / license
+E_SHOP   = "<:xzx_shop:1234567890000010>"    # shop / purchase
+E_GIFT   = "<:xzx_gift:1234567890000011>"    # gift / giveaway
+E_WAVE   = "<:xzx_wave:1234567890000012>"    # wave / welcome
+E_BOT    = "<:xzx_bot:1234567890000013>"     # bot / verification
+E_PIN    = "<:xzx_pin:1234567890000014>"     # pin / role
+E_CLOCK  = "<:xzx_clock:1234567890000015>"   # clock / time
+E_CHART  = "<:xzx_chart:1234567890000016>"   # chart / stats
+E_TOOL   = "<:xzx_tool:1234567890000017>"    # wrench / setup
+E_TRASH  = "<:xzx_trash:1234567890000018>"   # trash / delete
+E_LINK   = "<:xzx_link:1234567890000019>"    # link / external
+E_COIN   = "<:xzx_coin:1234567890000020>"    # coin / currency
 
 UNITS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
 HEX_RE = re.compile(r"^#?([0-9a-fA-F]{6})$")
@@ -97,7 +121,33 @@ def compact(**kwargs) -> dict:
 
 
 async def reply(interaction: discord.Interaction, **kwargs):
-    """Respond to an interaction whether or not it has been answered yet (ephemeral by default)."""
+    """Respond to an interaction whether or not it has been answered yet (ephemeral by default).
+
+    Supports Components V2: if 'embed' kwarg is a CardView (from ui.card/ui.note),
+    it is automatically moved to 'view' and Components V2 flags are set.
+    """
+    # Detect CardView passed as 'embed' for backward compat with call sites
+    _maybe_card = kwargs.get("embed")
+    if _maybe_card is not None:
+        try:
+            from ui import CardView  # local import to avoid circular
+            if isinstance(_maybe_card, CardView):
+                kwargs["view"] = _maybe_card
+                del kwargs["embed"]
+        except ImportError:
+            pass
+
+    # If a CardView is in 'view', strip 'embeds'/'content' conflicts and set V2 flags
+    _view = kwargs.get("view")
+    if _view is not None:
+        try:
+            from ui import CardView
+            if isinstance(_view, CardView):
+                kwargs.pop("embeds", None)
+                # content is allowed alongside V2 but keep it clean
+        except ImportError:
+            pass
+
     kwargs = compact(**kwargs)
     kwargs.setdefault("ephemeral", True)
     if interaction.response.is_done():

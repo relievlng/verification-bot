@@ -62,13 +62,13 @@ class ConfirmReset(discord.ui.View):
         await db.execute("UPDATE invite_joins SET counted = 0 WHERE guild_id = ?", (interaction.guild_id,))
         await db.execute("DELETE FROM invite_bonus WHERE guild_id = ?", (interaction.guild_id,))
         self.stop()
-        await interaction.response.edit_message(embed=ui.card("✅ Everyone's invites were reset", "Counts start again from now.", color=SUCCESS), view=None)
+        await interaction.response.edit_message(view=ui.card("✅ Everyone's invites were reset", "Counts start again from now.", color=SUCCESS))
         await emit(interaction.guild, "staff", "All invite counts reset", ui.kv(("🛡️ By", interaction.user.mention)), subject=interaction.user.id)
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.stop()
-        await interaction.response.edit_message(embed=ui.card("Cancelled", "Nothing was changed."), view=None)
+        await interaction.response.edit_message(view=ui.card("Cancelled", "Nothing was changed."))
 
 
 @app_commands.guild_only()
@@ -147,7 +147,7 @@ class Invites(commands.GroupCog, group_name="invites", group_description="Invite
         stats = await db.invite_stats(interaction.guild_id, member.id)
         board = await ranking(interaction.guild_id)
         rank = next((i for i, (uid, _) in enumerate(board, start=1) if uid == member.id), None)
-        await interaction.response.send_message(embed=await stats_embed(interaction.guild, member, stats, rank), ephemeral=True)
+        await interaction.response.send_message(view=await stats_embed(interaction.guild, member, stats, rank), ephemeral=True)
 
     @app_commands.command(description="The top inviters in the server")
     async def leaderboard(self, interaction: discord.Interaction):
@@ -155,7 +155,7 @@ class Invites(commands.GroupCog, group_name="invites", group_description="Invite
         if not board:
             raise UserError("Nobody has invited anyone yet.")
         lines = [f"{ui.rank(i)} <@{uid}> · **{st['valid']:,}** invites · {st['joins']:,} joined, {st['left']:,} left" for i, (uid, st) in enumerate(board)]
-        await interaction.response.send_message(embed=ui.card("🏆 Invite leaderboard", "\n".join(lines), guild=interaction.guild, section="Invites"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🏆 Invite leaderboard", "\n".join(lines), guild=interaction.guild, section="Invites"), ephemeral=True)
 
     @app_commands.command(description="Staff: see who invited a member")
     @app_commands.describe(member="The member")
@@ -166,7 +166,7 @@ class Invites(commands.GroupCog, group_name="invites", group_description="Invite
             raise UserError("I have no record of how that member joined (they joined before invite tracking started).")
         body = ui.kv(("👤 Member", member.mention), ("🔗 Invited by", f"<@{row['inviter_id']}>" if row["inviter_id"] else "Unknown"), ("🎟️ Invite code", f"`{row['code']}`" if row["code"] else None),
                      ("📅 Joined", discord.utils.format_dt(discord.utils.parse_time(row["joined_at"]), "f")), ("🚩 Flag", "New account, not counted as a valid invite" if row["fake"] else None))
-        await interaction.response.send_message(embed=ui.card("🔎 Who invited them", body, guild=interaction.guild, section="Invites"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🔎 Who invited them", body, guild=interaction.guild, section="Invites"), ephemeral=True)
 
     @app_commands.command(description="Staff: add bonus invites to someone")
     @app_commands.describe(member="Who", amount="How many to add")
@@ -186,7 +186,7 @@ class Invites(commands.GroupCog, group_name="invites", group_description="Invite
             (interaction.guild_id, member.id, delta),
         )
         stats = await db.invite_stats(interaction.guild_id, member.id)
-        await interaction.response.send_message(embed=ui.card("✅ Invites updated", f"{member.mention} now has **{stats['valid']:,}** valid invites ({delta:+,}).", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("✅ Invites updated", f"{member.mention} now has **{stats['valid']:,}** valid invites ({delta:+,}).", color=SUCCESS), ephemeral=True)
         await emit(interaction.guild, "staff", "Invites adjusted", ui.kv(("👤 Member", member.mention), ("🔢 Change", f"{delta:+,}"), ("📈 Now", f"{stats['valid']:,}"), ("🛡️ By", interaction.user.mention)), subject=member.id)
 
     @app_commands.command(description="Staff: reset one person's invites, or everyone's")
@@ -195,13 +195,13 @@ class Invites(commands.GroupCog, group_name="invites", group_description="Invite
     async def reset(self, interaction: discord.Interaction, member: Optional[discord.Member] = None, everyone: bool = False):
         if everyone:
             return await interaction.response.send_message(
-                embed=ui.card("⚠️ Reset everyone's invites?", "This sets every member's invite count back to zero. It can't be undone.", color=WARN), view=ConfirmReset(interaction.user.id), ephemeral=True
+                view=ui.card("⚠️ Reset everyone's invites?", "This sets every member's invite count back to zero. It can't be undone.", color=WARN).with_view(ConfirmReset(interaction.user.id)), ephemeral=True
             )
         if member is None:
             raise UserError("Pick a **member** to reset, or set **everyone** to True.")
         await db.execute("UPDATE invite_joins SET counted = 0 WHERE guild_id = ? AND inviter_id = ?", (interaction.guild_id, member.id))
         await db.execute("DELETE FROM invite_bonus WHERE guild_id = ? AND user_id = ?", (interaction.guild_id, member.id))
-        await interaction.response.send_message(embed=ui.card("✅ Invites reset", f"{member.mention} is back to **0** valid invites.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("✅ Invites reset", f"{member.mention} is back to **0** valid invites.", color=SUCCESS), ephemeral=True)
         await emit(interaction.guild, "staff", "Invites reset", ui.kv(("👤 Member", member.mention), ("🛡️ By", interaction.user.mention)), subject=member.id)
 
 

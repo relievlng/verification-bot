@@ -79,19 +79,19 @@ def meta(name: str) -> tuple:
     return CATEGORY_META.get(name, FALLBACK_META)
 
 
-def overview_embed(cats: dict[str, list]) -> discord.Embed:
+def overview_embed(cats: dict[str, list]) -> ui.CardView:
     everyone = [(n, rows) for n, rows in cats.items() if any(not r[2] for r in rows)]
     staff_only = [(n, rows) for n, rows in cats.items() if all(r[2] for r in rows)]
     total = sum(len(rows) for rows in cats.values())
-    embed = ui.card("📖 Help", f"**{total}** commands in **{len(cats)}** categories. Pick one from the menu below, or run `/help command:name` for the details of one command.\n"
-                    "🛡️ marks commands only staff can use.\n\n**New here?** Run `/setup` to get everything going in one command.", color=COLOR, section="Info")
+    b = ui.card_builder("📖 Help", f"**{total}** commands in **{len(cats)}** categories. Pick one from the menu below, or run `/help command:name` for the details of one command.\n"
+                        "🛡️ marks commands only staff can use.\n\n**New here?** Run `/setup` to get everything going in one command.", color=COLOR, section="Info")
     for name, rows in everyone:
         emoji, blurb = meta(name)
         free = sum(1 for r in rows if not r[2])
-        embed.add_field(name=f"{emoji} {name}", value=f"{blurb}\n`{len(rows)}` commands" + (f" · `{free}` for everyone" if free != len(rows) else ""))
+        b.add_field(f"{emoji} {name}", f"{blurb}\n`{len(rows)}` commands" + (f" - `{free}` for everyone" if free != len(rows) else ""))
     if staff_only:
-        embed.add_field(name="🛡️ Staff only", value="\n".join(f"{meta(n)[0]} {n} (`{len(r)}`)" for n, r in staff_only), inline=False)
-    return embed
+        b.add_field("🛡️ Staff only", "\n".join(f"{meta(n)[0]} {n} (`{len(r)}`)" for n, r in staff_only), inline=False)
+    return b.build()
 
 
 def category_embeds(name: str, rows: list) -> discord.Embed:
@@ -134,7 +134,7 @@ class HelpSelect(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction):
         choice = self.values[0]
         embed = overview_embed(self.cats) if choice == "overview" else category_embeds(choice, self.cats[choice])
-        await interaction.response.edit_message(embed=embed)
+        await interaction.response.edit_message(view=embed)
 
 
 class HelpView(discord.ui.View):
@@ -160,8 +160,8 @@ class General(commands.Cog):
     async def help_cmd(self, interaction: discord.Interaction, command: Optional[str] = None):
         cats = collect(self.bot)
         if command:
-            return await interaction.response.send_message(embed=command_embed(cats, command), ephemeral=True)
-        await interaction.response.send_message(embed=overview_embed(cats), view=HelpView(cats), ephemeral=True)
+            return await interaction.response.send_message(view=command_embed(cats, command), ephemeral=True)
+        await interaction.response.send_message(view=overview_embed(cats).with_view(HelpView(cats)), ephemeral=True)
 
     @app_commands.command(description="Check that every part of the bot loaded correctly (admins)")
     @app_commands.guild_only()
@@ -197,52 +197,48 @@ class General(commands.Cog):
         total = sum(len(list(c.walk_commands())) if isinstance(c, app_commands.Group) else 1 for c in bot.tree.get_commands())
         stripe = "✅ set" if os.getenv("STRIPE_WEBHOOK_SECRET") else "not set (purchase DMs off)"
 
-        embed = ui.card("🩺 Bot diagnosis", color=COLOR if all(s.endswith("ok") for s in getattr(bot, "extension_status", {}).values()) else INFO, section="Info")
-        embed.add_field(name="Modules", value="\n".join(modules) or "No information", inline=False)
-        if missing:
-            embed.add_field(name="❌ Missing files (top level of your repo)", value=", ".join(f"`{f}`" for f in missing), inline=False)
-        if misplaced:
-            embed.add_field(name="⚠️ Files in the wrong place", value=", ".join(f"`{f}`" for f in misplaced) + "\nThese belong inside the `cogs` folder.", inline=False)
-        embed.add_field(name="Database", value="✅ All tables and columns are present" if not db_problems else "❌ " + "; ".join(db_problems), inline=False)
         db_path = os.path.abspath(db.DB_PATH)
         on_railway = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_PROJECT_ID"))
         if on_railway and not db_path.startswith("/data"):
-            storage = f"⚠️ `{db_path}` is **not** on your Railway volume, so your data (settings, tickets, shop, stored files) can be wiped on every redeploy.\nFix: in Railway → Variables add `DB_PATH` = `/data/verification.db` (with the volume mounted at `/data`), then redeploy."
+            storage = f"⚠️ `{db_path}` is **not** on your Railway volume, so your data (settings, tickets, shop, stored files) can be wiped on every redeploy.\nFix: in Railway - Variables add `DB_PATH` = `/data/verification.db` (with the volume mounted at `/data`), then redeploy."
         else:
             storage = f"✅ `{db_path}`" + (" (on the Railway volume)" if on_railway else "")
-        embed.add_field(name="💾 Where your data is saved", value=storage, inline=False)
         from guildlock import lock_enabled
-        embed.add_field(
-            name="🔒 Private mode",
-            value="✅ On: the bot only stays in servers you approved" if await lock_enabled()
-            else "⚠️ Off: anyone who can invite this bot can add it to other servers. Run `/serverlock on` in your server and turn off **Public Bot** in the Developer Portal.",
-            inline=False,
-        )
-        embed.add_field(name="🏓 Latency", value=f"{round(bot.latency * 1000)} ms" if bot.latency == bot.latency else "unknown", inline=True)
-        embed.add_field(name="Commands", value=f"{total} registered · groups: {', '.join('/' + g for g in groups) or 'none'}\nSync: {bot.sync_status if hasattr(bot, 'sync_status') else 'unknown'}", inline=False)
-        embed.add_field(name="Settings", value=f"Message Content Intent: {'✅ on' if bot.intents.message_content else 'off'}\nStripe webhook secret: {stripe}", inline=False)
-        embed.set_footer(text=f"Python {sys.version.split()[0]} · discord.py {discord.__version__}")
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        b = ui.card_builder("🩺 Bot diagnosis", color=COLOR if all(s.endswith("ok") for s in getattr(bot, "extension_status", {}).values()) else INFO, section="Info",
+                            footer=f"Python {sys.version.split()[0]} - discord.py {discord.__version__}")
+        b.add_field("Modules", "\n".join(modules) or "No information", inline=False)
+        if missing:
+            b.add_field("❌ Missing files (top level of your repo)", ", ".join(f"`{f}`" for f in missing), inline=False)
+        if misplaced:
+            b.add_field("⚠️ Files in the wrong place", ", ".join(f"`{f}`" for f in misplaced) + "\nThese belong inside the `cogs` folder.", inline=False)
+        b.add_field("Database", "✅ All tables and columns are present" if not db_problems else "❌ " + "; ".join(db_problems), inline=False)
+        b.add_field("💾 Where your data is saved", storage, inline=False)
+        b.add_field("🔒 Private mode",
+                    "✅ On: the bot only stays in servers you approved" if await lock_enabled()
+                    else "⚠️ Off: anyone who can invite this bot can add it to other servers. Run `/serverlock on` in your server and turn off **Public Bot** in the Developer Portal.",
+                    inline=False)
+        b.add_field("🏓 Latency", f"{round(bot.latency * 1000)} ms" if bot.latency == bot.latency else "unknown", inline=True)
+        b.add_field("Commands", f"{total} registered - groups: {', '.join('/' + g for g in groups) or 'none'}\nSync: {bot.sync_status if hasattr(bot, 'sync_status') else 'unknown'}", inline=False)
+        b.add_field("Settings", f"Message Content Intent: {'✅ on' if bot.intents.message_content else 'off'}\nStripe webhook secret: {stripe}", inline=False)
+        await interaction.followup.send(view=b.build(), ephemeral=True)
 
     @info.command(name="server", description="Show info about this server, including its member count")
     @app_commands.guild_only()
     async def serverinfo(self, interaction: discord.Interaction):
         g = interaction.guild
         humans = sum(1 for m in g.members if not m.bot)
-        embed = ui.card(g.name, g.description, color=INFO, section="Info")
-        if g.icon:
-            embed.set_thumbnail(url=g.icon.url)
-        if g.banner:
-            embed.set_image(url=g.banner.url)
-        embed.add_field(name="👑 Owner", value=g.owner.mention if g.owner else "Unknown")
-        embed.add_field(name="📅 Created", value=discord.utils.format_dt(g.created_at, "D"))
-        embed.add_field(name="🔐 Verification level", value=str(g.verification_level).title())
-        embed.add_field(name="👥 Members", value=f"{g.member_count:,}\n{humans:,} people · {g.member_count - humans:,} bots")
-        embed.add_field(name="💬 Channels", value=f"{len(g.text_channels)} text · {len(g.voice_channels)} voice\n{len(g.categories)} categories")
-        embed.add_field(name="🎭 Roles & emoji", value=f"{len(g.roles) - 1} roles · {len(g.emojis)} emoji")
-        embed.add_field(name="🚀 Boosts", value=f"{g.premium_subscription_count} (level {g.premium_tier})")
-        embed.set_footer(text=f"ID: {g.id}")
-        await interaction.response.send_message(embed=embed)
+        b = ui.card_builder(g.name, g.description, color=INFO, section="Info",
+                            footer=f"ID: {g.id}",
+                            thumbnail=g.icon.url if g.icon else None,
+                            image=g.banner.url if g.banner else None)
+        b.add_field("👑 Owner", g.owner.mention if g.owner else "Unknown")
+        b.add_field("📅 Created", discord.utils.format_dt(g.created_at, "D"))
+        b.add_field("🔐 Verification level", str(g.verification_level).title())
+        b.add_field("👥 Members", f"{g.member_count:,}\n{humans:,} people - {g.member_count - humans:,} bots")
+        b.add_field("💬 Channels", f"{len(g.text_channels)} text - {len(g.voice_channels)} voice\n{len(g.categories)} categories")
+        b.add_field("🎭 Roles & emoji", f"{len(g.roles) - 1} roles - {len(g.emojis)} emoji")
+        b.add_field("🚀 Boosts", f"{g.premium_subscription_count} (level {g.premium_tier})")
+        await interaction.response.send_message(view=b.build())
 
     @info.command(name="user", description="Show info about a member, including their avatar")
     @app_commands.describe(member="Who to look up (defaults to you)")
@@ -255,23 +251,22 @@ class General(commands.Cog):
         position = by_join.index(member) + 1 if member in by_join else None
         warns = (await db.fetch_one("SELECT COUNT(*) AS c FROM warnings WHERE guild_id = ? AND user_id = ?", (guild.id, member.id)))["c"]
 
-        embed = ui.card(str(member), color=member.color if member.color.value else INFO, section="Info")
-        embed.set_thumbnail(url=member.display_avatar.url)
-        embed.add_field(name="📅 Account created", value=discord.utils.format_dt(member.created_at, "R"))
-        embed.add_field(name="📥 Joined", value=discord.utils.format_dt(member.joined_at, "R") if member.joined_at else "Unknown")
-        embed.add_field(name="🔢 Join position", value=f"#{position:,}" if position else "Unknown")
-        embed.add_field(name="🏅 Top role", value=member.top_role.mention if not member.top_role.is_default() else "None")
+        b = ui.card_builder(str(member), color=member.color if member.color.value else INFO, section="Info",
+                            footer=f"ID: {member.id}", thumbnail=member.display_avatar.url)
+        b.add_field("📅 Account created", discord.utils.format_dt(member.created_at, "R"))
+        b.add_field("📥 Joined", discord.utils.format_dt(member.joined_at, "R") if member.joined_at else "Unknown")
+        b.add_field("🔢 Join position", f"#{position:,}" if position else "Unknown")
+        b.add_field("🏅 Top role", member.top_role.mention if not member.top_role.is_default() else "None")
         if member.guild_permissions.administrator:
-            embed.add_field(name="🔑 Key permission", value="Administrator")
+            b.add_field("🔑 Key permission", "Administrator")
         if member.timed_out_until:
-            embed.add_field(name="🔇 Timed out until", value=discord.utils.format_dt(member.timed_out_until, "f"))
+            b.add_field("🔇 Timed out until", discord.utils.format_dt(member.timed_out_until, "f"))
         if warns:
-            embed.add_field(name="⚠️ Warnings", value=str(warns))
-        embed.add_field(name=f"🎭 Roles ({len(roles)})", value=" ".join(roles[:20]) or "None", inline=False)
-        embed.set_footer(text=f"ID: {member.id}")
+            b.add_field("⚠️ Warnings", str(warns))
+        b.add_field(f"🎭 Roles ({len(roles)})", " ".join(roles[:20]) or "None", inline=False)
         avatar_view = discord.ui.View()
         avatar_view.add_item(discord.ui.Button(style=discord.ButtonStyle.link, label="Open avatar", emoji="🖼️", url=member.display_avatar.url))
-        await interaction.response.send_message(embed=embed, view=avatar_view)
+        await interaction.response.send_message(view=b.build().with_view(avatar_view))
 
 
 async def setup(bot: commands.Bot):

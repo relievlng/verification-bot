@@ -250,7 +250,7 @@ class RateButton(discord.ui.DynamicItem[discord.ui.Button], template=r"ticket:ra
         if not t or t["user_id"] != interaction.user.id:
             return await interaction.response.send_message("This rating isn't for you.", ephemeral=True)
         if t["rating"]:
-            return await interaction.response.send_message(embed=ui.card("Already rated", f"You rated this ticket {ui.stars(t['rating'])} already. Thanks! 💙"), ephemeral=True)
+            return await interaction.response.send_message(view=ui.card("Already rated", f"You rated this ticket {ui.stars(t['rating'])} already. Thanks! 💙"), ephemeral=True)
         await db.execute("UPDATE tickets SET rating = ? WHERE id = ?", (self.rating, self.ticket_id))
         t = await db.fetch_one("SELECT * FROM tickets WHERE id = ?", (self.ticket_id,))
         guild = interaction.client.get_guild(t["guild_id"])
@@ -273,7 +273,7 @@ class RateButton(discord.ui.DynamicItem[discord.ui.Button], template=r"ticket:ra
         button = support_button(guild, cfg) if guild else None
         if button:
             view.add_item(button)
-        await interaction.response.edit_message(embed=ui.card("Thanks for your feedback! 💙", body, color=SUCCESS, guild=guild, section="Support"), view=view)
+        await interaction.response.edit_message(view=ui.card("Thanks for your feedback! 💙", body, color=SUCCESS, guild=guild, section="Support").with_view(view))
         if guild:
             await emit(
                 guild, "tickets", "Ticket rated",
@@ -325,7 +325,7 @@ class CommentModal(discord.ui.Modal):
         if button:
             view.add_item(button)
         await interaction.response.edit_message(
-            embed=ui.card("Comment added 💬", "Thanks! Your comment is now part of your review.", color=SUCCESS, guild=guild, section="Support"), view=view
+            view=ui.card("Comment added 💬", "Thanks! Your comment is now part of your review.", color=SUCCESS, guild=guild, section="Support").with_view(view)
         )
 
 
@@ -375,10 +375,10 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         try:
             await coro
         except UserError as e:
-            await reply(interaction, embed=simple("⚠️ Hold on", str(e), WARN))
+            await reply(interaction, view=simple("⚠️ Hold on", str(e), WARN))
         except Exception:
             log.exception("Unexpected ticket error")
-            await reply(interaction, embed=simple("Something went wrong", "Please try again, or ask a moderator.", DANGER))
+            await reply(interaction, view=simple("Something went wrong", "Please try again, or ask a moderator.", DANGER))
 
     async def cfg_or_error(self, guild_id: int):
         cfg = await db.get_ticket_config(guild_id)
@@ -430,7 +430,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             return
         try:
             message = await channel.fetch_message(t["control_message_id"])
-            await message.edit(embed=await self.render_embed(guild, t))
+            await message.edit(view=await self.render_embed(guild, t))
         except discord.HTTPException:
             pass
 
@@ -514,7 +514,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             raise UserError("Add at least one ticket type first: `/ticket addtype`.")
         await self.delete_panel(guild, old or cfg)
         embed, view = self.build_panel(guild, cfg, types)
-        message = await channel.send(embed=embed, view=view)
+        message = await channel.send(view=embed.with_view(view))
         await db.upsert_ticket_config(guild.id, panel_message_id=message.id)
         return message
 
@@ -539,7 +539,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         elif len(vis) == 1:
             chosen = vis[0]
         if chosen is None:
-            return await reply(interaction, embed=simple("🎫 Open a ticket", "What do you need help with?", INFO), view=ChooseTypeView(self, self.type_options(vis)))
+            return await reply(interaction, view=simple("🎫 Open a ticket", "What do you need help with?", INFO).with_view(ChooseTypeView(self, self.type_options(vis))))
 
         if chosen["kind"] == "application" and not chosen["app_open"]:
             raise UserError(f"**{chosen['name']}s** are closed right now. Please check back later.")
@@ -550,8 +550,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             # applications aren't about a macro - go straight to the question form
             await interaction.response.send_modal(ApplicationModal(self, chosen))
             return
-        await reply(interaction, embed=simple(f"🎫 {chosen['name']}", "Which macro do you need help with?", INFO),
-                    view=MacroPickView(self, chosen))
+        await reply(interaction, view=simple(f"🎫 {chosen['name']}", "Which macro do you need help with?", INFO).with_view(MacroPickView(self, chosen)))
         # Reset the dropdown so the same option can be picked again (best effort)
         if interaction.message is not None and interaction.message.id == cfg["panel_message_id"] and len(types) > 1:
             try:
@@ -622,19 +621,19 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         if cfg["ping_staff"] and staff_roles:
             content += " " + " ".join(r.mention for r in staff_roles)
         message = await channel.send(
-            content=content, embed=await self.render_embed(guild, t), view=TicketControls(self),
+            content=content, view=await self.render_embed(guild, t).with_view(TicketControls(self)),
             allowed_mentions=discord.AllowedMentions(users=[member], roles=staff_roles if cfg["ping_staff"] else []),
         )
         await db.execute("UPDATE tickets SET control_message_id = ? WHERE id = ?", (message.id, t["id"]))
 
         if invoice_code:
-            await channel.send(embed=await self.invoice_embed(guild, member, invoice_code))
+            await channel.send(view=await self.invoice_embed(guild, member, invoice_code))
 
         if ttype["kind"] == "application" and details.strip():   # full answers, untruncated
-            await channel.send(embed=ui.card(f"📋 {ttype['name']}", details[:4000], color=ACCENT, section="Tickets"))
+            await channel.send(view=ui.card(f"📋 {ttype['name']}", details[:4000], color=ACCENT, section="Tickets"))
 
         await emit(guild, "tickets", "🎫 Ticket opened", ui.kv(("👤 Opened by", f"{member.mention} (`{member.id}`)"), ("📍 Channel", channel.mention), ("🎫 Ticket", f"{number_label(t)} · {ttype['name']}"), ("🎮 Macro", macro_label(macro) if macro else None), ("📌 Subject", subject.strip()), ("🧾 Invoice", f"`{invoice_code}`" if invoice_code else None)), COLOR, subject=member.id, ids=(("ticket", number_label(t)), ("channel", channel.id)))
-        await interaction.followup.send(embed=simple("✅ Ticket created", f"Head over to {channel.mention}. A staff member will be with you soon.", COLOR), ephemeral=True)
+        await interaction.followup.send(view=simple("✅ Ticket created", f"Head over to {channel.mention}. A staff member will be with you soon.", COLOR), ephemeral=True)
 
     async def invoice_embed(self, guild: discord.Guild, member: discord.Member, code: str) -> discord.Embed:
         order = await db.fetch_one("SELECT * FROM orders WHERE guild_id = ? AND code = ?", (guild.id, code))
@@ -668,7 +667,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         cfg = await self.cfg_or_error(interaction.guild_id)
         if interaction.user.id != ticket["user_id"] and not is_staff(interaction.user, cfg):
             raise UserError("Only the ticket owner or staff can close this ticket.")
-        await reply(interaction, embed=simple("🔒 Closing", "Saving the transcript and closing this ticket…", INFO))
+        await reply(interaction, view=simple("🔒 Closing", "Saving the transcript and closing this ticket…", INFO))
         await self.close_ticket(interaction.guild, ticket, interaction.user, reason)
 
     async def ticket_log(self, guild: discord.Guild, ticket, title: str, actor, *lines, color=None) -> None:
@@ -692,7 +691,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         ticket = await db.fetch_one("SELECT * FROM tickets WHERE id = ?", (ticket["id"],))
         await self.refresh_controls(interaction.guild, ticket)
         await self.ticket_log(interaction.guild, ticket, "Ticket claimed", interaction.user)
-        await reply(interaction, embed=simple("🙋 Ticket claimed", f"{interaction.user.mention} will be helping with this ticket.", COLOR), ephemeral=False)
+        await reply(interaction, view=simple("🙋 Ticket claimed", f"{interaction.user.mention} will be helping with this ticket.", COLOR), ephemeral=False)
 
     async def build_transcript(self, guild: discord.Guild, channel: discord.TextChannel, ticket, closer_text: str = "") -> tuple[bytes, int]:
         messages = []
@@ -729,7 +728,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         closer_text = f"Closed by: {closer.id if closer else 'automatic'} · Reason: {reason or '-'}"
         if isinstance(channel, discord.TextChannel):
             try:
-                await channel.send(embed=simple("🔒 Closing ticket", f"Saving the transcript. This channel will be deleted in {CLOSE_DELAY} seconds.", WARN))
+                await channel.send(view=simple("🔒 Closing ticket", f"Saving the transcript. This channel will be deleted in {CLOSE_DELAY} seconds.", WARN))
             except discord.HTTPException:
                 pass
             try:
@@ -753,7 +752,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             tch = guild.get_channel(cfg["transcript_channel_id"])
             if tch is not None:
                 try:
-                    await tch.send(embed=summary, file=discord.File(io.BytesIO(data), filename=filename))
+                    await tch.send(view=summary, file=discord.File(io.BytesIO(data), filename=filename))
                 except discord.HTTPException:
                     log.warning("Couldn't post the transcript for ticket %s", ticket["id"])
         elif not (cfg and cfg["transcript_channel_id"]):
@@ -861,7 +860,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
                     try:
                         await channel.send(
                             content=f"<@{t['user_id']}>",
-                            embed=simple("⏳ Still there?", f"This ticket will close automatically in about **{left}** if nobody replies.", WARN),
+                            view=simple("⏳ Still there?", f"This ticket will close automatically in about **{left}** if nobody replies.", WARN),
                             allowed_mentions=discord.AllowedMentions(users=True),
                         )
                     except discord.HTTPException:
@@ -1040,7 +1039,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         embed.add_field(name="Ask for rating", value="On" if cfg["ask_rating"] else "Off")
         embed.add_field(name="Ticket types", value=", ".join(f"{t['emoji'] or ''}{t['name']}" for t in types) or "None", inline=False)
         embed.add_field(name="Message text in transcripts", value="✅ Included" if self.bot.intents.message_content else "⚠️ Off (needs Message Content Intent)", inline=False)
-        await interaction.response.send_message(("✅ Saved.\n" if updates else ""), embed=embed, ephemeral=True)
+        await interaction.response.send_message(("✅ Saved.\n" if updates else ""), view=embed, ephemeral=True)
 
     @app_commands.command(description="Let another role see and answer tickets")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1203,7 +1202,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
                 return " · 📋 application " + ("🟢 open" if t["app_open"] else "🔴 closed")
             return " · asks for Invoice ID" if t["needs_invoice"] else ""
         lines = [f"{t['emoji'] or '🎫'} **{t['name']}**{tag(t)}\n{t['description'] or ''}" for t in types]
-        await interaction.response.send_message(embed=ui.card("🎫 Ticket types", "\n\n".join(lines), color=INFO, section="Tickets"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🎫 Ticket types", "\n\n".join(lines), color=INFO, section="Tickets"), ephemeral=True)
 
     @app_commands.command(description="Stop someone from opening tickets")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1247,7 +1246,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         ticket = await db.fetch_one("SELECT * FROM tickets WHERE id = ?", (ticket["id"],))
         await self.refresh_controls(interaction.guild, ticket)
         await self.ticket_log(interaction.guild, ticket, "Ticket claim released", interaction.user)
-        await interaction.response.send_message(embed=simple("↩️ Claim released", f"{interaction.user.mention} released this ticket. Another staff member can claim it.", INFO))
+        await interaction.response.send_message(view=simple("↩️ Claim released", f"{interaction.user.mention} released this ticket. Another staff member can claim it.", INFO))
 
     @app_commands.command(description="Set this ticket's priority (staff)")
     @app_commands.choices(level=[app_commands.Choice(name=f"{e} {l}", value=k) for k, (e, l) in PRIORITIES.items()])
@@ -1257,7 +1256,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         ticket = await db.fetch_one("SELECT * FROM tickets WHERE id = ?", (ticket["id"],))
         await self.refresh_controls(interaction.guild, ticket)
         await self.ticket_log(interaction.guild, ticket, "Ticket priority changed", interaction.user, ("🚦 Priority", level.name))
-        await interaction.response.send_message(embed=simple("🚦 Priority changed", f"Priority is now **{level.name}**.", COLOR))
+        await interaction.response.send_message(view=simple("🚦 Priority changed", f"Priority is now **{level.name}**.", COLOR))
 
     @app_commands.command(description="Add someone to this ticket (staff)")
     async def add(self, interaction: discord.Interaction, member: discord.Member):
@@ -1266,7 +1265,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             member, overwrite=discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True, attach_files=True), reason=f"Added by {interaction.user}"
         )
         await self.ticket_log(interaction.guild, ticket, "Member added to ticket", interaction.user, ("➕ Added", f"{member.mention} (`{member.id}`)"))
-        await interaction.response.send_message(embed=simple("➕ Member added", f"{member.mention} can now see and reply in this ticket.", COLOR))
+        await interaction.response.send_message(view=simple("➕ Member added", f"{member.mention} can now see and reply in this ticket.", COLOR))
 
     @app_commands.command(description="Remove someone from this ticket (staff)")
     async def remove(self, interaction: discord.Interaction, member: discord.Member):
@@ -1277,7 +1276,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             raise UserError("That member is ticket staff, so they get access through their role.")
         await interaction.channel.set_permissions(member, overwrite=None, reason=f"Removed by {interaction.user}")
         await self.ticket_log(interaction.guild, ticket, "Member removed from ticket", interaction.user, ("➖ Removed", f"{member.mention} (`{member.id}`)"))
-        await interaction.response.send_message(embed=simple("➖ Member removed", f"{member.mention} can no longer see this ticket.", WARN))
+        await interaction.response.send_message(view=simple("➖ Member removed", f"{member.mention} can no longer see this ticket.", WARN))
 
     @app_commands.command(description="Rename this ticket channel (staff)")
     @app_commands.describe(name="New name (letters, numbers and dashes)")
@@ -1289,7 +1288,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             await asyncio.wait_for(interaction.channel.edit(name=new_name, reason=f"Renamed by {interaction.user}"), timeout=8)
         except asyncio.TimeoutError:
             raise UserError("Discord limits channel renames to 2 every 10 minutes. Please try again a bit later.") from None
-        await interaction.followup.send(embed=simple("✏️ Renamed", f"This ticket is now `{new_name}`.", COLOR))
+        await interaction.followup.send(view=simple("✏️ Renamed", f"This ticket is now `{new_name}`.", COLOR))
 
     @app_commands.command(description="Show details about this ticket")
     async def info(self, interaction: discord.Interaction):
@@ -1297,7 +1296,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         embed = await self.render_embed(interaction.guild, ticket)
         embed.add_field(name="Opened", value=discord.utils.format_dt(parse_iso(ticket["created_at"]), "R"))
         embed.add_field(name="Last activity", value=discord.utils.format_dt(parse_iso(ticket["last_activity"]), "R"))
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(view=embed, ephemeral=True)
 
     @app_commands.command(description="Save a transcript of this ticket without closing it (staff)")
     async def transcript(self, interaction: discord.Interaction):
@@ -1332,7 +1331,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             where = f"<#{t['channel_id']}>" if t["status"] == "open" and t["channel_id"] else "closed"
             claimed = f" · 🙋 <@{t['claimed_by']}>" if t["claimed_by"] else ""
             lines.append(f"{PRIORITIES.get(t['priority'], PRIORITIES['normal'])[0]} `{number_label(t)}` {where} · {t['type_name']} · <@{t['user_id']}>{claimed}")
-        await interaction.response.send_message(embed=ui.card(f"🎫 Tickets ({wanted})", "\n".join(lines), color=INFO, section="Tickets"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"🎫 Tickets ({wanted})", "\n".join(lines), color=INFO, section="Tickets"), ephemeral=True)
 
     @app_commands.command(description="Ticket statistics (staff)")
     async def stats(self, interaction: discord.Interaction):
@@ -1362,7 +1361,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         embed.add_field(name="Top types", value="\n".join(f"{n}: {c}" for n, c in by_type) or "n/a", inline=False)
         if claimers:
             embed.add_field(name="Most claims", value="\n".join(f"<@{u}>: {c}" for u, c in claimers), inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(view=embed, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

@@ -63,7 +63,7 @@ async def post_ticket_review(guild: discord.Guild, user: discord.abc.User, ticke
     )
     r = await db.fetch_one("SELECT * FROM reviews WHERE guild_id = ? AND user_id = ? AND product_name = ?", (guild.id, user.id, name))
     try:
-        message = await channel.send(embed=review_embed(guild, user, r), allowed_mentions=discord.AllowedMentions.none())
+        message = await channel.send(view=review_embed(guild, user, r), allowed_mentions=discord.AllowedMentions.none())
     except discord.HTTPException:
         return None
     await db.execute("UPDATE reviews SET channel_id = ?, message_id = ? WHERE id = ?", (channel.id, message.id, r["id"]))
@@ -88,7 +88,7 @@ async def add_ticket_review_comment(guild: discord.Guild, user: discord.abc.User
         return None
     try:
         message = await channel.fetch_message(r["message_id"])
-        await message.edit(embed=review_embed(guild, user, r))
+        await message.edit(view=review_embed(guild, user, r))
         return message
     except discord.HTTPException:
         return None
@@ -140,12 +140,12 @@ async def save_product_review(bot: commands.Bot, guild: discord.Guild, user: dis
     if existing and existing["message_id"] and existing["channel_id"] == channel.id:
         try:
             message = await channel.fetch_message(existing["message_id"])
-            await message.edit(embed=embed)
+            await message.edit(view=embed)
         except discord.HTTPException:
             message = None
     if message is None:
         try:
-            message = await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+            message = await channel.send(view=embed, allowed_mentions=discord.AllowedMentions.none())
         except discord.HTTPException:
             raise UserError("I couldn't post in the product reviews channel. An admin needs to check my permissions there.") from None
     await db.execute("UPDATE reviews SET channel_id = ?, message_id = ? WHERE id = ?", (channel.id, message.id, review_id))
@@ -195,8 +195,8 @@ class ProductReviewButton(discord.ui.DynamicItem[discord.ui.Button], template=r"
             msg = "Only buyers can review products, and I can't find a purchase on your account." if settings["require_purchase"] else "There are no products to review yet."
             return await interaction.response.send_message(msg, ephemeral=True)
         await interaction.response.send_message(
-            embed=ui.card("🛍️ Review a product", "Which product do you want to review?", color=COLOR, guild=guild, section="Reviews"),
-            view=ProductPickView(interaction.client, guild, products[:25]), ephemeral=True,
+            view=ui.card("🛍️ Review a product", "Which product do you want to review?", color=COLOR, guild=guild, section="Reviews").with_view(ProductPickView(interaction.client, guild, products[:25])),
+            ephemeral=True,
         )
 
 
@@ -212,8 +212,7 @@ class ProductPickView(discord.ui.View):
             if not p:
                 return await interaction.response.send_message("That product doesn't exist any more.", ephemeral=True)
             await interaction.response.edit_message(
-                embed=ui.card(f"🛍️ {p['name']}", "How many stars do you give it?", color=COLOR, guild=guild, section="Reviews"),
-                view=StarPickView(bot, guild, p))
+                view=ui.card(f"🛍️ {p['name']}", "How many stars do you give it?", color=COLOR, guild=guild, section="Reviews").with_view(StarPickView(bot, guild, p)))
 
         select.callback = picked
         self.add_item(select)
@@ -245,13 +244,13 @@ class ProductReviewModal(discord.ui.Modal):
             r, message, existing, code, channel = await save_product_review(
                 self.bot, self.guild, interaction.user, self.p, self.stars, self.text.value.strip() or None)
         except UserError as e:
-            return await interaction.response.edit_message(embed=ui.card("Couldn't post your review", str(e), color=DANGER, guild=self.guild, section="Reviews"), view=None)
+            return await interaction.response.edit_message(view=ui.card("Couldn't post your review", str(e), color=DANGER, guild=self.guild, section="Reviews"))
         view = discord.ui.View()
         view.add_item(discord.ui.Button(style=discord.ButtonStyle.link, label="See your review", emoji="⭐", url=message.jump_url))
-        await interaction.response.edit_message(embed=ui.card(
+        await interaction.response.edit_message(view=ui.card(
             "✅ Review updated" if existing else "✅ Thanks for your review!",
             f"{ui.stars(self.stars)}  **{self.stars}/5** for **{self.p['name']}**" + ("\n✅ Verified buyer" if code else ""),
-            color=SUCCESS, guild=self.guild, section="Reviews"), view=view)
+            color=SUCCESS, guild=self.guild, section="Reviews").with_view(view))
 
 
 @app_commands.guild_only()
@@ -291,7 +290,7 @@ class ReviewCog(commands.Cog):
             f"{ui.stars(stars.value)}  **{stars.value}/5** for **{p['name']}**" + (f"\n🛡️ Thanks to {staff.mention}" if staff else "") + f"\n\n[See it in {channel.mention}]({message.jump_url})",
             color=SUCCESS, guild=guild, section="Reviews",
         )
-        await interaction.followup.send(embed=done, ephemeral=True)
+        await interaction.followup.send(view=done, ephemeral=True)
 
 
 @app_commands.guild_only()
@@ -337,7 +336,7 @@ class Reviews(commands.GroupCog, group_name="reviews", group_description="Review
             ),
             guild=interaction.guild, section="Reviews", color=SUCCESS if updates else COLOR,
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(view=embed, ephemeral=True)
 
     @app_commands.command(description="Admin leaderboard: staff by ticket ratings, or products by reviews")
     @app_commands.describe(board="Which leaderboard to show")
@@ -381,7 +380,7 @@ class Reviews(commands.GroupCog, group_name="reviews", group_description="Review
         body = "\n\n".join(lines)
         embed = ui.card(title, (head + "\n\n" if head else "") + body, color=ACCENT, guild=guild, section=section)
         embed.add_field(name="\u200b", value=f"*{footer_note}*", inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(view=embed, ephemeral=True)
 
     @app_commands.command(description="List recent reviews with their IDs")
     @app_commands.describe(product="Only this product")
@@ -400,7 +399,7 @@ class Reviews(commands.GroupCog, group_name="reviews", group_description="Review
             kind = "🎫" if r["kind"] == "ticket" else "🛍️"
             extra = (" · ✅" if r["order_code"] else "") + (f" · 🛡️ <@{r['staff_id']}>" if r["staff_id"] else "")
             lines.append(f"`#{r['id']}` {ui.stars(r['stars'])} {kind} **{r['product_name']}** · <@{r['user_id']}>{extra}")
-        await interaction.response.send_message(embed=ui.card("⭐ Recent reviews", "\n".join(lines), guild=interaction.guild, section="Reviews"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("⭐ Recent reviews", "\n".join(lines), guild=interaction.guild, section="Reviews"), ephemeral=True)
 
     @app_commands.command(description="Delete a review by its ID")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -423,7 +422,7 @@ class Reviews(commands.GroupCog, group_name="reviews", group_description="Review
             ui.kv(("👤 Reviewer", f"<@{r['user_id']}> (`{r['user_id']}`)"), ("📦 Product", r["product_name"]), ("⭐ Rating", f"{r['stars']}/5")),
             actor=interaction.user, subject=r["user_id"], ids=(("review", review_id),),
         )
-        await interaction.followup.send(embed=ui.card("🗑️ Review removed", f"Deleted review `#{review_id}` of **{r['product_name']}**.", color=SUCCESS), ephemeral=True)
+        await interaction.followup.send(view=ui.card("🗑️ Review removed", f"Deleted review `#{review_id}` of **{r['product_name']}**.", color=SUCCESS), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

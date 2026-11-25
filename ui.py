@@ -1,4 +1,4 @@
-"""One look for every embed: neutral cards, a few accent colours, tidy key/value blocks, star helpers."""
+"""One look for every message: Components V2 containers with accent colors, tidy key/value blocks, star helpers."""
 from typing import Iterable, Optional
 
 import discord
@@ -30,8 +30,8 @@ def bar(fraction: float, width: int = 10) -> str:
 
 
 def kv(*pairs: tuple) -> str:
-    """Tidy 'label · value' lines. Pairs with an empty value are skipped."""
-    return "\n".join(f"**{label}** · {value}" for label, value in pairs if value not in (None, ""))
+    """Tidy 'label * value' lines. Pairs with an empty value are skipped."""
+    return "\n".join(f"**{label}** - {value}" for label, value in pairs if value not in (None, ""))
 
 
 def duration(seconds: float) -> str:
@@ -51,6 +51,190 @@ def rank(i: int) -> str:
     return MEDALS[i] if i < len(MEDALS) else f"`{i + 1}.`"
 
 
+# ---------------------------------------------------------------- V2 helpers ----
+
+
+def _build_text(title: Optional[str], description: Optional[str], footer: Optional[str],
+                guild: Optional[discord.Guild], section: Optional[str],
+                thumbnail: Optional[str], image: Optional[str],
+                author: Optional[tuple], fields: Optional[list] = None) -> str:
+    """Compose a markdown string from embed-like parts."""
+    parts = []
+    if author:
+        name = author[0]
+        parts.append(f"**{name}**")
+    if thumbnail:
+        # In Components V2 we can reference thumbnails via Section accessory or just mention them in text
+        # We'll handle thumbnail specially in container()
+        pass
+    if title:
+        parts.append(f"### {title}")
+    if description:
+        parts.append(description)
+    if fields:
+        for name, value, inline in fields:
+            if name and value:
+                parts.append(f"**{name}**\n{value}")
+    footer_text = footer or (" - ".join(x for x in (guild.name if guild else None, section) if x) or None)
+    if footer_text:
+        parts.append(f"-# {footer_text}")
+    return "\n\n".join(p for p in parts if p)
+
+
+class CardView(discord.ui.LayoutView):
+    """A Components V2 layout view that wraps a single container card."""
+
+    def __init__(
+        self,
+        text_content: str,
+        *,
+        color: discord.Color | int = COLOR,
+        thumbnail_url: Optional[str] = None,
+        image_url: Optional[str] = None,
+        extra_views: Optional[list] = None,
+    ):
+        super().__init__()
+        accent = color if isinstance(color, discord.Color) else discord.Color(color)
+        children: list = []
+
+        if thumbnail_url:
+            # Use a Section with Thumbnail accessory for the top part
+            section = discord.ui.Section(
+                discord.ui.TextDisplay(text_content),
+                accessory=discord.ui.Thumbnail(url=thumbnail_url),
+            )
+            children.append(section)
+        else:
+            children.append(discord.ui.TextDisplay(text_content))
+
+        if image_url:
+            children.append(discord.ui.MediaGallery(discord.ui.MediaGalleryItem(url=image_url)))
+
+        # Attach any extra interactive views (buttons etc.) if passed
+        if extra_views:
+            children.append(discord.ui.Separator(visible=False))
+            for item in extra_views:
+                children.append(item)
+
+        self.container = discord.ui.Container(*children, accent_color=accent)
+        self.add_item(self.container)
+
+    def with_view(self, other: "discord.ui.View | None") -> "CardView":
+        """Merge another View's interactive items (buttons, selects) into this LayoutView.
+
+        Components V2 only allows one view= per message. When a card and an
+        interactive view must both appear, call card.with_view(interactive_view)
+        and pass the result as the sole view= argument.
+        """
+        if other is None:
+            return self
+        for item in other.children:
+            self.container.add_item(item)
+        return self
+
+    # ------------------------------------------------------------------ compat shims --
+    # Allow incremental building on a CardView (mirrors discord.Embed's API).
+    # These collect extra text and rebuild the TextDisplay on the fly.
+
+    def _append_text(self, extra: str) -> None:
+        """Append a markdown block to the card's TextDisplay in place."""
+        # Find the TextDisplay to update
+        td = None
+        for child in self.container.children:
+            if isinstance(child, discord.ui.TextDisplay):
+                td = child
+                break
+            if isinstance(child, discord.ui.Section):
+                for sc in child.children:
+                    if isinstance(sc, discord.ui.TextDisplay):
+                        td = sc
+                        break
+        if td is None:
+            self.container.add_item(discord.ui.TextDisplay(extra))
+        else:
+            td._content = (td._content or "") + "\n\n" + extra  # type: ignore[attr-defined]
+
+    def add_field(self, *, name: str, value: str, inline: bool = True) -> "CardView":
+        self._append_text(f"**{name}**\n{value}")
+        return self
+
+    def set_footer(self, *, text: str, icon_url: Optional[str] = None) -> "CardView":
+        self._append_text(f"-# {text}")
+        return self
+
+    def set_thumbnail(self, *, url: str) -> "CardView":
+        # Can't add a second thumbnail retroactively; store for reference only
+        return self
+
+    def set_image(self, *, url: str) -> "CardView":
+        try:
+            self.container.add_item(discord.ui.MediaGallery(discord.ui.MediaGalleryItem(url=url)))
+        except Exception:
+            pass
+        return self
+
+    def set_author(self, *, name: str, url: Optional[str] = None, icon_url: Optional[str] = None) -> "CardView":
+        self._append_text(f"**{name}**")
+        return self
+
+    @property
+    def description(self) -> str:
+        """Compat: read the TextDisplay content."""
+        for child in self.container.children:
+            if isinstance(child, discord.ui.TextDisplay):
+                return child._content or ""  # type: ignore[attr-defined]
+            if isinstance(child, discord.ui.Section):
+                for sc in child.children:
+                    if isinstance(sc, discord.ui.TextDisplay):
+                        return sc._content or ""  # type: ignore[attr-defined]
+        return ""
+
+    @description.setter
+    def description(self, value: str) -> None:
+        """Compat: replace the TextDisplay content."""
+        for child in self.container.children:
+            if isinstance(child, discord.ui.TextDisplay):
+                child._content = value  # type: ignore[attr-defined]
+                return
+            if isinstance(child, discord.ui.Section):
+                for sc in child.children:
+                    if isinstance(sc, discord.ui.TextDisplay):
+                        sc._content = value  # type: ignore[attr-defined]
+                        return
+        self.container.add_item(discord.ui.TextDisplay(value))
+
+    @property
+    def url(self) -> Optional[str]:
+        """Compat stub - V2 containers don't have URLs."""
+        return None
+
+    @url.setter
+    def url(self, value: Optional[str]) -> None:
+        """Compat stub - no-op for V2."""
+
+    @property
+    def title(self) -> str:
+        """Return the first ### heading from the TextDisplay, or empty string."""
+        for line in self.description.split('\n'):
+            if line.startswith('### '):
+                return line[4:]
+        return ""
+
+    @title.setter
+    def title(self, value: str) -> None:
+        """Replace or prepend a ### heading in the TextDisplay."""
+        desc = self.description
+        lines = desc.split('\n')
+        for i, line in enumerate(lines):
+            if line.startswith('### '):
+                lines[i] = f"### {value}"
+                self.description = '\n'.join(lines)
+                return
+        # No existing heading - prepend
+        new_desc = f"### {value}\n\n{desc}".strip()
+        self.description = new_desc
+
+
 def card(
     title: Optional[str] = None,
     description: Optional[str] = None,
@@ -63,20 +247,102 @@ def card(
     image: Optional[str] = None,
     author: Optional[tuple] = None,
     timestamp: bool = False,
-) -> discord.Embed:
-    embed = discord.Embed(title=title, description=description, color=color, timestamp=discord.utils.utcnow() if timestamp else None)
-    if author:
-        embed.set_author(name=author[0], icon_url=author[1] if len(author) > 1 else None)
-    if thumbnail:
-        embed.set_thumbnail(url=thumbnail)
-    if image:
-        embed.set_image(url=image)
-    text = footer or (" · ".join(x for x in (guild.name if guild else None, section) if x) or None)
-    if text:
-        embed.set_footer(text=text, icon_url=guild.icon.url if guild is not None and guild.icon else None)
-    return embed
+    _fields: Optional[list] = None,
+) -> "CardView":
+    """
+    Build a Components V2 CardView (replaces discord.Embed).
+    Returns a CardView - pass as `view=card(...)` instead of `embed=card(...)`.
+
+    For backward compat with .add_field() callers: use card_builder() instead.
+    """
+    text = _build_text(title, description, footer, guild, section, thumbnail, image, author, _fields)
+    return CardView(text or "​", color=color, thumbnail_url=thumbnail, image_url=image)
 
 
-def note(title: str, text: str, color: discord.Color | int = COLOR) -> discord.Embed:
-    """A small status message (errors, confirmations)."""
+def note(title: str, text: str, color: discord.Color | int = COLOR) -> "CardView":
+    """A small status message (errors, confirmations). Returns CardView."""
     return card(title, text, color=color)
+
+
+class CardBuilder:
+    """
+    Mutable card builder that supports .add_field() and .set_* calls,
+    for code paths that build embeds incrementally.
+    Call .build() to get the final CardView.
+    """
+
+    def __init__(
+        self,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+        *,
+        color: discord.Color | int = COLOR,
+        guild: Optional[discord.Guild] = None,
+        section: Optional[str] = None,
+        footer: Optional[str] = None,
+        thumbnail: Optional[str] = None,
+        image: Optional[str] = None,
+        author: Optional[tuple] = None,
+    ):
+        self.title = title
+        self.description = description
+        self.color = color
+        self.guild = guild
+        self.section = section
+        self.footer = footer
+        self.thumbnail = thumbnail
+        self.image = image
+        self.author = author
+        self.fields: list = []
+
+    def add_field(self, name: str, value: str, inline: bool = True) -> "CardBuilder":
+        self.fields.append((name, value, inline))
+        return self
+
+    def set_footer(self, text: str, icon_url: Optional[str] = None) -> "CardBuilder":
+        self.footer = text
+        return self
+
+    def set_thumbnail(self, url: str) -> "CardBuilder":
+        self.thumbnail = url
+        return self
+
+    def set_image(self, url: str) -> "CardBuilder":
+        self.image = url
+        return self
+
+    def set_author(self, name: str, icon_url: Optional[str] = None) -> "CardBuilder":
+        self.author = (name, icon_url) if icon_url else (name,)
+        return self
+
+    def build(self) -> CardView:
+        text = _build_text(
+            self.title, self.description, self.footer,
+            self.guild, self.section, self.thumbnail, self.image,
+            self.author, self.fields or None,
+        )
+        return CardView(text or "​", color=self.color, thumbnail_url=self.thumbnail, image_url=self.image)
+
+
+def card_builder(
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    *,
+    color: discord.Color | int = COLOR,
+    guild: Optional[discord.Guild] = None,
+    section: Optional[str] = None,
+    footer: Optional[str] = None,
+    thumbnail: Optional[str] = None,
+    image: Optional[str] = None,
+    author: Optional[tuple] = None,
+) -> CardBuilder:
+    """Return a CardBuilder for cases that need .add_field() style building."""
+    return CardBuilder(
+        title, description, color=color, guild=guild, section=section,
+        footer=footer, thumbnail=thumbnail, image=image, author=author,
+    )
+
+
+# Keep a simple legacy alias so old Embed-typed type hints don't break at runtime
+# (they're now CardView objects but Python doesn't enforce return-type annotations)
+LegacyEmbed = CardView

@@ -115,14 +115,12 @@ async def render(guild: discord.Guild, row) -> dict:
     shown = row["title"] or (row["name"] if row["kind"] in ("installguides", "clothingpreviews") else kind["default"])
     body = row["body"] or "*Nothing written here yet. Staff can add it with the edit command.*"
     footer = row["footer"] or " · ".join(x for x in (guild.name, row["section"]) if x)
-    embed = ui.card(f"{kind['icon']}  {shown}", body, color=int(row["color"], 16) if row["color"] else COLOR, guild=guild, footer=footer)
     out: dict = {}
     image = await load_image(row)
+    image_url = f"attachment://{image[0]}" if image else (row["image_url"] or None)
+    embed = ui.card(f"{kind['icon']}  {shown}", body, color=int(row["color"], 16) if row["color"] else COLOR, guild=guild, footer=footer, image=image_url)
     if image:
-        embed.set_image(url=f"attachment://{image[0]}")
         out["file"] = discord.File(io.BytesIO(image[1]), filename=image[0])
-    elif row["image_url"]:
-        embed.set_image(url=row["image_url"])
     out["embed"] = embed
     view = links_view(row)
     if view is not None:
@@ -160,7 +158,7 @@ async def refresh(guild: discord.Guild, row) -> bool:
     parts = await render(guild, row)
     file = parts.pop("file", None)
     try:
-        await message.edit(embed=parts["embed"], attachments=[file] if file else [], view=parts.get("view"))
+        await message.edit(view=parts["embed"], attachments=[file] if file else [].with_view(parts.get("view")))
     except discord.HTTPException:
         return False
     return True
@@ -264,7 +262,7 @@ async def after_edit(interaction: discord.Interaction, row) -> None:
     kind = KINDS[row["kind"]]
     where = f"\nThe posted message in <#{row['channel_id']}> was updated." if updated else "\nIt isn't posted anywhere yet. Use the **post** command to put it in a channel."
     web_note = "" if public_base_url() else "\n\n⚠️ No public web address is set up, so there's no styled 'Full page' link yet. In Railway: **Settings → Networking → Generate Domain**."
-    await interaction.followup.send(embed=ui.card(f"✅ {kind['label']} saved", f"**{row['title'] or row['name']}** is stored in the database.{where}{web_note}", color=SUCCESS), ephemeral=True)
+    await interaction.followup.send(view=ui.card(f"✅ {kind['label']} saved", f"**{row['title'] or row['name']}** is stored in the database.{where}{web_note}", color=SUCCESS), ephemeral=True)
     await emit(interaction.guild, "posts", f"{kind['label']} edited", ui.kv(("📄 Page", row["title"] or row["name"]), ("🛡️ By", interaction.user.mention), ("📍 Posted in", f"<#{row['channel_id']}>" if row["channel_id"] else None)), subject=interaction.user.id)
 
 
@@ -292,7 +290,7 @@ class SinglePageBase:
             raise UserError("Write it first with the **edit** command, then post it.")
         await interaction.response.defer(ephemeral=True)
         message = await publish(interaction.guild, row, channel)
-        await interaction.followup.send(embed=ui.card("✅ Posted", f"{KINDS[self.KIND]['label']} is live in {channel.mention}.\n\n[Jump to it]({message.jump_url})", color=SUCCESS), ephemeral=True)
+        await interaction.followup.send(view=ui.card("✅ Posted", f"{KINDS[self.KIND]['label']} is live in {channel.mention}.\n\n[Jump to it]({message.jump_url})", color=SUCCESS), ephemeral=True)
         await emit(interaction.guild, "posts", f"{KINDS[self.KIND]['label']} posted", ui.kv(("📍 Channel", channel.mention), ("🛡️ By", interaction.user.mention)), subject=interaction.user.id)
 
     @app_commands.command(description="Edit the text, links and picture")
@@ -386,7 +384,7 @@ class ManyPagesBase:
                 pass
         await drop_image(row["image_file_id"])
         await db.execute("DELETE FROM pages WHERE id = ?", (row["id"],))
-        await interaction.response.send_message(embed=ui.card("🗑️ Removed", f"**{row['name']}** was deleted" + (" and its posted message too." if message else "."), color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🗑️ Removed", f"**{row['name']}** was deleted" + (" and its posted message too." if message else "."), color=SUCCESS), ephemeral=True)
         await emit(interaction.guild, "posts", f"{KINDS[self.KIND]['label']} removed", ui.kv(("📄 Page", row["name"]), ("🛡️ By", interaction.user.mention)), subject=interaction.user.id)
 
     async def post_pages(self, interaction: discord.Interaction, rows: list, channel: discord.TextChannel, intro: Optional[str] = None):
@@ -394,10 +392,10 @@ class ManyPagesBase:
             raise UserError("There's nothing to post yet. Add some first.")
         await interaction.response.defer(ephemeral=True)
         if intro:
-            await channel.send(embed=ui.card(intro, None, guild=interaction.guild), allowed_mentions=discord.AllowedMentions.none())
+            await channel.send(view=ui.card(intro, None, guild=interaction.guild), allowed_mentions=discord.AllowedMentions.none())
         for row in rows:
             await publish(interaction.guild, row, channel)
-        await interaction.followup.send(embed=ui.card("✅ Posted", f"{len(rows)} post(s) are live in {channel.mention}. Editing one later updates it in place.", color=SUCCESS), ephemeral=True)
+        await interaction.followup.send(view=ui.card("✅ Posted", f"{len(rows)} post(s) are live in {channel.mention}. Editing one later updates it in place.", color=SUCCESS), ephemeral=True)
         await emit(interaction.guild, "posts", f"{KINDS[self.KIND]['label']}s posted", ui.kv(("📍 Channel", channel.mention), ("📄 Posts", str(len(rows))), ("🛡️ By", interaction.user.mention)), subject=interaction.user.id)
 
 
@@ -421,11 +419,11 @@ class GuideBrowser(discord.ui.View):
         async def pick_guide(inter: discord.Interaction):
             chosen = await get_page(self.guild.id, "installguides", guide.values[0])
             parts = await render(self.guild, chosen)
-            await inter.response.edit_message(embed=parts["embed"], view=view_with(parts, view), attachments=[parts["file"]] if "file" in parts else [])
+            await inter.response.edit_message(view=parts["embed"].with_view(view_with(parts, view)), attachments=[parts["file"]] if "file" in parts else [])
 
         guide.callback = pick_guide
         view.add_item(guide)
-        await interaction.response.edit_message(embed=ui.card(f"📚 {section}", "Pick a guide below.", guild=self.guild, section="Install guides"), view=view)
+        await interaction.response.edit_message(view=ui.card(f"📚 {section}", "Pick a guide below.", guild=self.guild, section="Install guides").with_view(view))
 
 
 def view_with(parts: dict, browser: discord.ui.View) -> discord.ui.View:
@@ -450,7 +448,7 @@ class InstallGuides(ManyPagesBase, commands.GroupCog, group_name="installguides"
         sections = [r["section"] for r in await db.fetch_all("SELECT DISTINCT section FROM pages WHERE guild_id = ? AND kind = 'installguides' AND section != '' ORDER BY section", (interaction.guild_id,))]
         if not sections:
             raise UserError("There are no guides yet. Staff can add one with `/installguides add`.")
-        await interaction.response.send_message(embed=ui.card("📚 Installation guides", "Pick a category, then a guide.", guild=interaction.guild, section="Install guides"), view=GuideBrowser(interaction.guild, sections), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("📚 Installation guides", "Pick a category, then a guide.", guild=interaction.guild, section="Install guides").with_view(GuideBrowser(interaction.guild, sections)), ephemeral=True)
 
     @app_commands.command(description="Add an installation guide to a category")
     @app_commands.describe(category="The section it goes in, e.g. ReShade, FPS packs, Sound packs", name="The guide's name, e.g. How to install a ReShade",
@@ -495,7 +493,7 @@ class InstallGuides(ManyPagesBase, commands.GroupCog, group_name="installguides"
                 current = r["section"]
                 lines.append(f"\n**📂 {current or 'Uncategorised'}**")
             lines.append(f"• {r['name']}" + (f" · <#{r['channel_id']}>" if r["channel_id"] else " · *not posted*"))
-        await interaction.response.send_message(embed=ui.card("📚 Installation guides", "\n".join(lines).strip(), guild=interaction.guild, section="Install guides"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("📚 Installation guides", "\n".join(lines).strip(), guild=interaction.guild, section="Install guides"), ephemeral=True)
 
     @app_commands.command(description="Post a whole category of guides (or one guide) in a channel")
     @app_commands.describe(channel="Where to post", category="Post every guide in this category", guide="Or post just one guide")
@@ -558,7 +556,7 @@ class ClothingPreviews(ManyPagesBase, commands.GroupCog, group_name="clothingpre
         if not rows:
             raise UserError("No previews yet. Add one with `/clothingpreviews add`.")
         lines = [f"• **{r['name']}**" + (" · 🖼️ uploaded" if r["image_file_id"] else " · 🔗 linked" if r["image_url"] else "") + (f" · <#{r['channel_id']}>" if r["channel_id"] else " · *not posted*") for r in rows]
-        await interaction.response.send_message(embed=ui.card("👕 Clothing previews", "\n".join(lines), guild=interaction.guild, section="Previews"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("👕 Clothing previews", "\n".join(lines), guild=interaction.guild, section="Previews"), ephemeral=True)
 
     @app_commands.command(description="Post previews in a channel (all of them, or one)")
     @app_commands.describe(channel="Where to post", preview="Post just this one (default: all)")

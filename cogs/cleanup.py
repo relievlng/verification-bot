@@ -88,13 +88,13 @@ class ConfirmCleanup(discord.ui.View):
         self.stop()
         done = await apply_plan(interaction.guild_id, self.plan)
         body = "\n".join(f"• {n:,} {what}" for what, n in done.items()) or "Nothing needed removing."
-        await interaction.response.edit_message(embed=ui.card("✅ Cleaned up", body, color=SUCCESS), view=None)
+        await interaction.response.edit_message(view=ui.card("✅ Cleaned up", body, color=SUCCESS))
         await emit(interaction.guild, "staff", "Database cleanup", ui.kv(("🛡️ By", interaction.user.mention), ("🧹 Removed", ", ".join(f"{n} {what}" for what, n in done.items()) or "nothing")), subject=interaction.user.id)
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.stop()
-        await interaction.response.edit_message(embed=ui.card("Cancelled", "Nothing was removed."), view=None)
+        await interaction.response.edit_message(view=ui.card("Cancelled", "Nothing was removed."))
 
 
 # Bot DMs worth keeping by default: purchase receipts and anything with a macro key in it.
@@ -136,7 +136,7 @@ class Tools(commands.GroupCog, group_name="tools",
         total = plan_total(plan)
         body += "\n\n" + ("Real purchases, real files, customers' records and settings are **never** touched." if total else "✅ Nothing to clean up. Your data is tidy.")
         await interaction.response.send_message(
-            embed=ui.card("🧹 Cleanup preview", body, color=WARN, guild=interaction.guild, section="Staff"), view=ConfirmCleanup(interaction.user.id, plan) if total else None, ephemeral=True,
+            view=ui.card("🧹 Cleanup preview", body, color=WARN, guild=interaction.guild, section="Staff").with_view(ConfirmCleanup(interaction.user.id, plan)) if total else ui.card("🧹 Cleanup preview", body, color=WARN, guild=interaction.guild, section="Staff"), ephemeral=True,
         )
 
 
@@ -181,7 +181,7 @@ class Tools(commands.GroupCog, group_name="tools",
             await emit(interaction.guild, "staff", "🧹 Bot DMs cleared",
                        ui.kv(("👤 Member", f"{target.mention} · `{target.id}`"), ("🛡️ By", interaction.user.mention), ("🗑️ Deleted", str(deleted)),
                              ("🧾 Kept receipts", "yes" if keep_receipts else "no")), subject=target.id)
-        await interaction.followup.send(embed=ui.card("🧹 DMs cleared", body, color=SUCCESS, guild=interaction.guild), ephemeral=True)
+        await interaction.followup.send(view=ui.card("🧹 DMs cleared", body, color=SUCCESS, guild=interaction.guild), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

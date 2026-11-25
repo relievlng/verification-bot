@@ -338,8 +338,7 @@ class AutoUpload(commands.Cog):
             "**🔧 Fix broken** — re-match any drop zone whose destination channel I can no longer see (deleted, recreated, or access lost), by name"
         )
         await interaction.response.send_message(
-            embed=ui.card("📂 Auto-Upload Menu", body, guild=interaction.guild, section="Files"),
-            view=AutoUploadMenuView(self), ephemeral=True,
+            view=ui.card("📂 Auto-Upload Menu", body, guild=interaction.guild, section="Files").with_view(AutoUploadMenuView(self)), ephemeral=True,
         )
 
     async def room_left(self, guild_id: int) -> int:
@@ -370,7 +369,7 @@ class AutoUpload(commands.Cog):
 
         post_channel = self.bot.get_channel(row["post_channel_id"])  # may be on a different server than this message
         if post_channel is None:
-            await message.reply(embed=ui.card("⚠️ Can't post", "The channel this is set to post in doesn't exist any more, or I've lost access to it. Ask staff to run `/autoupload add` again.", color=WARN), mention_author=False)
+            await message.reply(view=ui.card("⚠️ Can't post", "The channel this is set to post in doesn't exist any more, or I've lost access to it. Ask staff to run `/autoupload add` again.", color=WARN), mention_author=False)
             return
         required_role = post_channel.guild.get_role(row["required_role_id"]) if row["required_role_id"] else None
 
@@ -423,7 +422,7 @@ class AutoUpload(commands.Cog):
         if posted:
             await message.add_reaction("✅")
         if failed:
-            await message.reply(embed=ui.card("⚠️ Some files didn't make it", "\n".join(failed), color=WARN), mention_author=False)
+            await message.reply(view=ui.card("⚠️ Some files didn't make it", "\n".join(failed), color=WARN), mention_author=False)
 
     async def ingest(self, message: discord.Message, preview_att: Optional[discord.Attachment], deliver_atts: list[discord.Attachment], row, post_channel: discord.TextChannel,
                       required_role: Optional[discord.Role], taken: set, store_guild_id: int, more_atts: Optional[list] = None) -> None:
@@ -609,7 +608,7 @@ class AutoUpload(commands.Cog):
         body = (f"Any file a staff member drops in {where} now gets stored in the file library and auto-posted in {post_channel.mention} "
                 f"with a **📥 Get file** button, tagged as **{pack.strip()}**."
                 + (f"\n\n🔒 Needs {required_role.mention} to claim." if required_role else "") + (" 🔁 Once per member." if once_per_user else ""))
-        await interaction.response.send_message(embed=ui.card("✅ Drop zone ready", body, color=SUCCESS, guild=interaction.guild, section="Files"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("✅ Drop zone ready", body, color=SUCCESS, guild=interaction.guild, section="Files"), ephemeral=True)
 
     async def pair_category(self, interaction: discord.Interaction, vault: discord.Guild, category, skip: list,
                              required_role: Optional[discord.Role], once_per_user: bool, create_missing: bool = True,
@@ -731,7 +730,7 @@ class AutoUpload(commands.Cog):
                                                                gif_url=gif_url, dest_category=dest_category)
         if not matched and not unmatched:
             raise UserError("No text channels found there. Check the category ID.")
-        await interaction.followup.send(embed=self.pairing_result_embed(interaction.guild, f"📥 {len(matched)} drop zone(s) paired", matched, unmatched, created), ephemeral=True)
+        await interaction.followup.send(view=self.pairing_result_embed(interaction.guild, f"📥 {len(matched)} drop zone(s) paired", matched, unmatched, created), ephemeral=True)
 
     async def preset(
         self, interaction: discord.Interaction, vault_guild_id: str,
@@ -755,7 +754,7 @@ class AutoUpload(commands.Cog):
             all_created += created
 
         await interaction.followup.send(
-            embed=self.pairing_result_embed(interaction.guild, f"⚡ Preset applied: {len(all_matched)} drop zone(s) paired", all_matched, all_unmatched, all_created),
+            view=self.pairing_result_embed(interaction.guild, f"⚡ Preset applied: {len(all_matched)} drop zone(s) paired", all_matched, all_unmatched, all_created),
             ephemeral=True,
         )
 
@@ -827,7 +826,7 @@ class AutoUpload(commands.Cog):
             all_created += created
 
         await interaction.followup.send(
-            embed=self.pairing_result_embed(
+            view=self.pairing_result_embed(
                 interaction.guild, f"🌱 Seeded {vault.name}: {len(all_paired)} channel(s) wired up", all_paired, [], all_created
             ),
             ephemeral=True,
@@ -861,7 +860,7 @@ class AutoUpload(commands.Cog):
             f"`{skip_terms or '(none)'}`.\n\n"
             f"Voice, stage, log, and ticket channels are always skipped."
         )
-        await interaction.response.send_message(embed=ui.card("🌐 Main server linked", body, color=SUCCESS, guild=interaction.guild, section="Files"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🌐 Main server linked", body, color=SUCCESS, guild=interaction.guild, section="Files"), ephemeral=True)
 
     async def refresh_main_channels(self, interaction: discord.Interaction):
         """Scan the linked main server for text channels and auto-link any that aren't already drop zones here.
@@ -901,7 +900,7 @@ class AutoUpload(commands.Cog):
 
         if not to_add:
             await interaction.followup.send(
-                embed=ui.card(
+                view=ui.card(
                     "🔄 Already up to date",
                     f"All text channels on **{vault.name}** are already wired up as drop zones.\n"
                     f"Skipping: `{', '.join(skip)}`",
@@ -972,7 +971,7 @@ class AutoUpload(commands.Cog):
             f"🔄 Refresh complete — {len(matched)} new channel(s) linked",
             matched, unmatched, created,
         )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.followup.send(view=embed, ephemeral=True)
 
     async def remove(self, interaction: discord.Interaction, upload_channel_id: str):
         cid = resolve_channel_id(upload_channel_id)
@@ -980,7 +979,7 @@ class AutoUpload(commands.Cog):
         if not row:
             raise UserError("That channel isn't a drop zone.")
         await db.execute("DELETE FROM upload_channels WHERE channel_id = ?", (cid,))
-        await interaction.response.send_message(embed=ui.card("🗑️ Removed", f"`{cid}` is no longer a drop zone.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🗑️ Removed", f"`{cid}` is no longer a drop zone.", color=SUCCESS), ephemeral=True)
 
     async def list(self, interaction: discord.Interaction):
         all_rows = await db.fetch_all("SELECT * FROM upload_channels ORDER BY pack_name")
@@ -1003,7 +1002,7 @@ class AutoUpload(commands.Cog):
                 f"📦 **{r['pack_name']}** · {src_label} (`{r['channel_id']}`) → {dest_label}"
                 + (f" · 🔒 <@&{r['required_role_id']}>" if r["required_role_id"] else "") + (" · 🔁 once" if r["once_per_user"] else "")
             )
-        await interaction.response.send_message(embed=ui.card("📥 Drop zones", "\n".join(lines), guild=interaction.guild, section="Files"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("📥 Drop zones", "\n".join(lines), guild=interaction.guild, section="Files"), ephemeral=True)
 
     async def fix_broken(self, interaction: discord.Interaction):
         """Re-matches any drop zone involving this server whose destination channel the bot can no longer see
@@ -1019,7 +1018,7 @@ class AutoUpload(commands.Cog):
         broken = [r for r in rows if self.bot.get_channel(r["post_channel_id"]) is None]
         if not broken:
             await interaction.response.send_message(
-                embed=ui.card("✅ Nothing broken", "Every drop zone involving this server still has a working destination channel.",
+                view=ui.card("✅ Nothing broken", "Every drop zone involving this server still has a working destination channel.",
                                color=SUCCESS, guild=interaction.guild, section="Files"),
                 ephemeral=True,
             )
@@ -1064,7 +1063,7 @@ class AutoUpload(commands.Cog):
             body += "**✅ Fixed**\n" + "\n".join(f"📦 **{r['pack_name']}** → {m.mention} ({m.guild.name})" for r, m in fixed) + "\n\n"
         if unresolved:
             body += "**⚠️ Couldn't fix automatically**\n" + "\n".join(f"📦 **{r['pack_name']}** — {why}" for r, why in unresolved)
-        await interaction.followup.send(embed=ui.card("🔧 Fix broken drop zones", body or "Nothing to report.", color=SUCCESS if fixed else WARN,
+        await interaction.followup.send(view=ui.card("🔧 Fix broken drop zones", body or "Nothing to report.", color=SUCCESS if fixed else WARN,
                                                        guild=interaction.guild, section="Files"), ephemeral=True)
 
     async def guide(self, interaction: discord.Interaction):
@@ -1095,12 +1094,12 @@ class AutoUpload(commands.Cog):
             "## Forward into these channels\n" + "\n".join(lines)
         )
         embed = ui.card(None, description[:4096], guild=interaction.guild, section="Files")
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(view=embed)
 
     async def inviteinfo(self, interaction: discord.Interaction):
         url = f"https://discord.com/oauth2/authorize?client_id={self.bot.user.id}&scope=bot%20applications.commands&permissions={INVITE_PERMS}"
         await interaction.response.send_message(
-            embed=ui.card(
+            view=ui.card(
                 "🔗 Invite link", f"Open this on the account that manages your other server, pick the server, and authorize:\n\n{url}\n\n"
                 "This asks for **Administrator**. That's the one permission that lets me see channels even in locked-down "
                 "categories like a private vault — anything less (even Manage Channels) still can't see a category unless "

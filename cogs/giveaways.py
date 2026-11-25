@@ -122,10 +122,10 @@ class LeaveView(discord.ui.View):
     async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
         g = await db.fetch_one("SELECT * FROM giveaways WHERE id = ?", (self.giveaway_id,))
         if not g or g["status"] != "active":
-            return await interaction.response.edit_message(embed=ui.card("Too late", "That giveaway has already ended.", color=WARN), view=None)
+            return await interaction.response.edit_message(view=ui.card("Too late", "That giveaway has already ended.", color=WARN))
         await db.execute("DELETE FROM giveaway_entries WHERE giveaway_id = ? AND user_id = ?", (self.giveaway_id, interaction.user.id))
         self.stop()
-        await interaction.response.edit_message(embed=ui.card("🚪 You left the giveaway", "You're no longer entered. You can press 🎉 again to rejoin.", color=COLOR), view=None)
+        await interaction.response.edit_message(view=ui.card("🚪 You left the giveaway", "You're no longer entered. You can press 🎉 again to rejoin.", color=COLOR))
         await self.cog.refresh_message(interaction.guild, g)
 
 
@@ -184,7 +184,7 @@ class Giveaways(commands.GroupCog, group_name="giveaway", group_description="Run
             return
         count = await self.entry_count(g["id"])
         try:
-            await message.edit(embed=active_embed(guild, g, count), view=build_view(g, count))
+            await message.edit(view=active_embed(guild, g, count).with_view(build_view(g, count)))
         except discord.HTTPException:
             pass
 
@@ -297,7 +297,7 @@ class Giveaways(commands.GroupCog, group_name="giveaway", group_description="Run
             if link:
                 view.add_item(link)
             try:
-                await member.send(embed=card, **({"view": view} if view.children else {}))
+                await member.send(view=card, **({"view": view} if view.children else {}))
             except discord.HTTPException:
                 pass  # DMs closed: the announcement in the channel still pings them
             if prize_file is not None:
@@ -317,7 +317,7 @@ class Giveaways(commands.GroupCog, group_name="giveaway", group_description="Run
         message = await self.message_for(guild, g)
         if message is not None:
             try:
-                await message.edit(embed=ended_embed(guild, g, winners, count), view=build_view(g, count, ended=True))
+                await message.edit(view=ended_embed(guild, g, winners, count).with_view(build_view(g, count, ended=True)))
             except discord.HTTPException:
                 pass
         await self.announce(guild, g, winners, message)
@@ -335,27 +335,27 @@ class Giveaways(commands.GroupCog, group_name="giveaway", group_description="Run
         guild, member = interaction.guild, interaction.user
         g = await db.fetch_one("SELECT * FROM giveaways WHERE id = ?", (giveaway_id,))
         if not g or g["guild_id"] != interaction.guild_id:
-            return await interaction.response.send_message(embed=ui.card("Not available", "That giveaway doesn't exist any more.", color=WARN), ephemeral=True)
+            return await interaction.response.send_message(view=ui.card("Not available", "That giveaway doesn't exist any more.", color=WARN), ephemeral=True)
         if g["status"] != "active" or parse_iso(g["ends_at"]) <= discord.utils.utcnow():
-            return await interaction.response.send_message(embed=ui.card("⏰ Too late", "This giveaway has ended.", color=WARN), ephemeral=True)
+            return await interaction.response.send_message(view=ui.card("⏰ Too late", "This giveaway has ended.", color=WARN), ephemeral=True)
         report = await self.requirement_report(guild, member, g)
         if not all(ok for ok, _ in report):
             checklist = "\n".join(f"{'✅' if ok else '❌'} {text}" for ok, text in report)
             return await interaction.response.send_message(
-                embed=ui.card("🔒 You can't enter yet", f"To enter **{g['prize']}** you need to:\n\n{checklist}\n\nCome back and press 🎉 once you've met them.", color=WARN), ephemeral=True
+                view=ui.card("🔒 You can't enter yet", f"To enter **{g['prize']}** you need to:\n\n{checklist}\n\nCome back and press 🎉 once you've met them.", color=WARN), ephemeral=True
             )
         existing = await db.fetch_one("SELECT 1 FROM giveaway_entries WHERE giveaway_id = ? AND user_id = ?", (giveaway_id, member.id))
         if existing:
             return await interaction.response.send_message(
-                embed=ui.card("✅ You're already in", "You're entered in this giveaway. Good luck! 🍀", color=SUCCESS), view=LeaveView(self, giveaway_id), ephemeral=True
+                view=ui.card("✅ You're already in", "You're entered in this giveaway. Good luck! 🍀", color=SUCCESS).with_view(LeaveView(self, giveaway_id)), ephemeral=True
             )
         await db.execute("INSERT OR IGNORE INTO giveaway_entries (giveaway_id, user_id, joined_at) VALUES (?, ?, ?)", (giveaway_id, member.id, discord.utils.utcnow().isoformat()))
         count = await self.entry_count(giveaway_id)
-        await interaction.response.edit_message(embed=active_embed(guild, g, count), view=build_view(g, count))
+        await interaction.response.edit_message(view=active_embed(guild, g, count).with_view(build_view(g, count)))
         bonus = ""
         if g["bonus_role_id"] and g["bonus_entries"] and g["bonus_role_id"] in {r.id for r in member.roles}:
             bonus = f"\nYou also get **+{g['bonus_entries']}** bonus entries from <@&{g['bonus_role_id']}>. 💎"
-        await interaction.followup.send(embed=ui.card("🎉 You're in!", f"You entered **{g['prize']}**. Good luck! 🍀{bonus}", color=SUCCESS), ephemeral=True)
+        await interaction.followup.send(view=ui.card("🎉 You're in!", f"You entered **{g['prize']}**. Good luck! 🍀{bonus}", color=SUCCESS), ephemeral=True)
 
     # ------------------------------------------------------------ timer ----
 
@@ -465,7 +465,7 @@ class Giveaways(commands.GroupCog, group_name="giveaway", group_description="Run
         try:
             can_ping = ping_role is not None and (ping_role.mentionable or guild.me.guild_permissions.mention_everyone)
             message = await target.send(
-                content=ping_role.mention if can_ping else None, embed=active_embed(guild, g, 0), view=build_view(g, 0),
+                content=ping_role.mention if can_ping else None, view=active_embed(guild, g, 0).with_view(build_view(g, 0)),
                 allowed_mentions=discord.AllowedMentions(roles=[ping_role] if can_ping else False, users=False, everyone=False),
             )
         except discord.HTTPException:
@@ -479,7 +479,7 @@ class Giveaways(commands.GroupCog, group_name="giveaway", group_description="Run
         if prize_file_row:
             delivery.append(f"📥 Winners are automatically DMed **{prize_file.strip()}**")
         await interaction.followup.send(
-            embed=ui.card("✅ Giveaway started", f"**{g['prize']}** is live in {target.mention}.\n\n[Jump to it]({message.jump_url})"
+            view=ui.card("✅ Giveaway started", f"**{g['prize']}** is live in {target.mention}.\n\n[Jump to it]({message.jump_url})"
                           + (f"\n\n🔔 Pinged {ping_role.mention}." if can_ping else (f"\n\n⚠️ I couldn't ping {ping_role.mention}. Make that role **mentionable** (Server Settings → Roles), or run `/pingroles setup`." if ping_role else ""))
                           + ("\n\n" + "\n".join(delivery) if delivery else ""),
                           color=SUCCESS, guild=guild, footer=f"Giveaway #{g['id']} · ends automatically"),
@@ -503,7 +503,7 @@ class Giveaways(commands.GroupCog, group_name="giveaway", group_description="Run
         role = guild.get_role(row["ping_role_id"]) if row["ping_role_id"] else None
         warn = "\n\n⚠️ That role isn't **mentionable**, so I can't ping it. Turn on *Allow anyone to @mention this role* for it, or run `/pingroles setup`." if role and not role.mentionable and not guild.me.guild_permissions.mention_everyone else ""
         body = ui.kv(("🔔 Ping role", role.mention if role else "None (no automatic ping)"), ("📍 Default channel", f"<#{row['default_channel_id']}>" if row["default_channel_id"] else "The channel you run it in")) + warn
-        await interaction.response.send_message(embed=ui.card("🎉 Giveaway settings", body, guild=guild, section="Giveaways"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🎉 Giveaway settings", body, guild=guild, section="Giveaways"), ephemeral=True)
 
     @app_commands.command(description="Change a running giveaway: prize, winners, time, description, or auto-delivery")
     @app_commands.describe(
@@ -553,7 +553,7 @@ class Giveaways(commands.GroupCog, group_name="giveaway", group_description="Run
         g = await db.fetch_one("SELECT * FROM giveaways WHERE id = ?", (g["id"],))
         await self.refresh_message(interaction.guild, g)
         await emit(interaction.guild, "giveaways", "Giveaway edited", ui.kv(("🎁 Prize", g["prize"]), ("🔧 Changed", ", ".join(updates)), ("🛡️ By", interaction.user.mention)), footer=f"#{g['id']}")
-        await interaction.response.send_message(embed=ui.card("✅ Giveaway updated", f"Changed: {', '.join(updates)}. The card was updated.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("✅ Giveaway updated", f"Changed: {', '.join(updates)}. The card was updated.", color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="End a giveaway now and pick the winners")
     @app_commands.describe(giveaway_id="Which giveaway")
@@ -566,7 +566,7 @@ class Giveaways(commands.GroupCog, group_name="giveaway", group_description="Run
         await interaction.response.defer(ephemeral=True)
         winners = await self.end_giveaway(interaction.guild, g, interaction.user)
         await interaction.followup.send(
-            embed=ui.card("🏁 Giveaway ended", ("Winners: " + ", ".join(f"<@{w}>" for w in winners)) if winners else "Nobody had a valid entry, so there are no winners.", color=SUCCESS if winners else WARN), ephemeral=True
+            view=ui.card("🏁 Giveaway ended", ("Winners: " + ", ".join(f"<@{w}>" for w in winners)) if winners else "Nobody had a valid entry, so there are no winners.", color=SUCCESS if winners else WARN), ephemeral=True
         )
 
     @app_commands.command(description="Pick new winners for a giveaway that has ended")
@@ -587,7 +587,7 @@ class Giveaways(commands.GroupCog, group_name="giveaway", group_description="Run
         message = await self.message_for(interaction.guild, g)
         await self.announce(interaction.guild, g, picked, message)
         await self.dm_winners(interaction.guild, g, picked, message)
-        await interaction.followup.send(embed=ui.card("🎲 Rerolled", "New winner" + ("s" if len(picked) > 1 else "") + ": " + ", ".join(f"<@{w}>" for w in picked), color=SUCCESS), ephemeral=True)
+        await interaction.followup.send(view=ui.card("🎲 Rerolled", "New winner" + ("s" if len(picked) > 1 else "") + ": " + ", ".join(f"<@{w}>" for w in picked), color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="Cancel a running giveaway (no winners are picked)")
     @app_commands.describe(giveaway_id="Which giveaway")
@@ -602,11 +602,11 @@ class Giveaways(commands.GroupCog, group_name="giveaway", group_description="Run
         message = await self.message_for(interaction.guild, g)
         if message is not None:
             try:
-                await message.edit(embed=cancelled_embed(interaction.guild, g), view=build_view(g, 0, ended=True))
+                await message.edit(view=cancelled_embed(interaction.guild, g).with_view(build_view(g, 0, ended=True)))
             except discord.HTTPException:
                 pass
         await emit(interaction.guild, "giveaways", "Giveaway cancelled", ui.kv(("Prize", g["prize"]), ("By", interaction.user.mention)), footer=f"#{g['id']}")
-        await interaction.followup.send(embed=ui.card("🚫 Giveaway cancelled", f"**{g['prize']}** was cancelled.", color=DANGER), ephemeral=True)
+        await interaction.followup.send(view=ui.card("🚫 Giveaway cancelled", f"**{g['prize']}** was cancelled.", color=DANGER), ephemeral=True)
 
     @app_commands.command(description="See the giveaways that are running")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -618,7 +618,7 @@ class Giveaways(commands.GroupCog, group_name="giveaway", group_description="Run
         for g in rows:
             count = await self.entry_count(g["id"])
             lines.append(f"`#{g['id']}` **{g['prize']}** · <#{g['channel_id']}>\n　⏰ ends {discord.utils.format_dt(parse_iso(g['ends_at']), 'R')} · 👥 {ui.plural(count, 'entry', 'entries')} · 🏆 {g['winners']}")
-        await interaction.response.send_message(embed=ui.card("🎉 Running giveaways", "\n\n".join(lines), color=ACCENT, guild=interaction.guild, section="Giveaways"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🎉 Running giveaways", "\n\n".join(lines), color=ACCENT, guild=interaction.guild, section="Giveaways"), ephemeral=True)
 
     @app_commands.command(description="Details about one giveaway")
     @app_commands.describe(giveaway_id="Which giveaway")
@@ -633,7 +633,7 @@ class Giveaways(commands.GroupCog, group_name="giveaway", group_description="Run
             ("⏰ Ends", card_time(parse_iso(g["ends_at"]))), ("🏆 Winners wanted", str(g["winners"])), ("👥 Entries", f"{count:,}"),
             ("🥇 Winners", ", ".join(f"<@{w}>" for w in winners) if winners else None), *requirement_lines(g),
         )
-        await interaction.response.send_message(embed=ui.card(f"🎉 Giveaway #{g['id']}", body, color=ACCENT, guild=interaction.guild, section="Giveaways"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"🎉 Giveaway #{g['id']}", body, color=ACCENT, guild=interaction.guild, section="Giveaways"), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

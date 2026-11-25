@@ -43,7 +43,7 @@ class ServerLock(commands.GroupCog, group_name="serverlock", group_description="
         if left:
             body += f"\n\n🚪 It just left **{len(left)}** other server(s)."
         body += "\n\n💡 Also turn off **Public Bot** in the Discord Developer Portal (Bot tab), so nobody else can even add it."
-        await interaction.followup.send(embed=ui.card("🔒 Server lock is on", body, color=SUCCESS, guild=interaction.guild, section="Server lock"), ephemeral=True)
+        await interaction.followup.send(view=ui.card("🔒 Server lock is on", body, color=SUCCESS, guild=interaction.guild, section="Server lock"), ephemeral=True)
 
     @app_commands.command(name="allow", description="Also approve another server by its ID")
     @app_commands.describe(server_id="Server ID: turn on Developer Mode, right-click the server, Copy Server ID")
@@ -53,7 +53,7 @@ class ServerLock(commands.GroupCog, group_name="serverlock", group_description="
             raise UserError("A server ID is only numbers, like `1234567890123456789`.")
         await self.add_server(int(server_id.strip()), interaction.user.id)
         await interaction.response.send_message(
-            embed=ui.card("✅ Server approved", f"`{server_id.strip()}` can now have this bot.\n\n**Approved**\n{self.names(await allowed_ids())}", color=SUCCESS, section="Server lock"), ephemeral=True
+            view=ui.card("✅ Server approved", f"`{server_id.strip()}` can now have this bot.\n\n**Approved**\n{self.names(await allowed_ids())}", color=SUCCESS, section="Server lock"), ephemeral=True
         )
 
     @app_commands.command(name="off", description="Turn the lock off (the bot can stay in any server it's added to)")
@@ -63,7 +63,7 @@ class ServerLock(commands.GroupCog, group_name="serverlock", group_description="
         still = env_allowed()
         note = "\n\n⚠️ `ALLOWED_GUILD_IDS` is still set in your Railway variables, so the lock stays on until you remove it there." if still else ""
         await interaction.response.send_message(
-            embed=ui.card("🔓 Server lock is off", "The bot will no longer leave servers. Anyone who can add it (see **Public Bot** in the Developer Portal) can use it." + note, color=WARN, section="Server lock"), ephemeral=True
+            view=ui.card("🔓 Server lock is off", "The bot will no longer leave servers. Anyone who can add it (see **Public Bot** in the Developer Portal) can use it." + note, color=WARN, section="Server lock"), ephemeral=True
         )
 
     @app_commands.command(name="status", description="See which servers the bot is approved for")
@@ -79,7 +79,7 @@ class ServerLock(commands.GroupCog, group_name="serverlock", group_description="
         stranger = present - allowed
         if on and stranger:
             body += f"\n⚠️ {len(stranger)} of them aren't approved (it leaves when it next checks or is re-invited)."
-        await interaction.response.send_message(embed=ui.card("🔒 Server lock", body, guild=interaction.guild, section="Server lock"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🔒 Server lock", body, guild=interaction.guild, section="Server lock"), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

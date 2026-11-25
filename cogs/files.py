@@ -250,28 +250,28 @@ class Files(commands.GroupCog, group_name="files", group_description="Store file
         guild, member = interaction.guild, interaction.user
         f = await db.fetch_one("SELECT * FROM stored_files WHERE id = ? AND guild_id = ?", (file_id, interaction.guild_id))
         if not f:
-            return await interaction.response.send_message(embed=ui.card("Not available", "That file isn't available any more.", color=WARN), ephemeral=True)
+            return await interaction.response.send_message(view=ui.card("Not available", "That file isn't available any more.", color=WARN), ephemeral=True)
         if f["required_role_id"] and f["required_role_id"] not in {r.id for r in getattr(member, "roles", [])}:
-            return await interaction.response.send_message(embed=ui.card("🔒 This file is for members with a role", f"You need <@&{f['required_role_id']}> to get **{f['name']}**.", color=WARN), ephemeral=True)
+            return await interaction.response.send_message(view=ui.card("🔒 This file is for members with a role", f"You need <@&{f['required_role_id']}> to get **{f['name']}**.", color=WARN), ephemeral=True)
         if f["once_per_user"] and await db.fetch_one("SELECT 1 FROM file_deliveries WHERE file_id = ? AND user_id = ?", (file_id, member.id)):
-            return await interaction.response.send_message(embed=ui.card("📥 Already sent", "You've already received this file. Check your DMs, or ask staff if you lost it.", color=WARN), ephemeral=True)
+            return await interaction.response.send_message(view=ui.card("📥 Already sent", "You've already received this file. Check your DMs, or ask staff if you lost it.", color=WARN), ephemeral=True)
         if f["size"] > ATTACH_LIMIT and not public_base_url():
-            return await interaction.response.send_message(embed=ui.card("⚙️ Not ready yet", "This file is too big to attach and the bot's download address isn't set up. Please tell a staff member.", color=WARN), ephemeral=True)
+            return await interaction.response.send_message(view=ui.card("⚙️ Not ready yet", "This file is too big to attach and the bot's download address isn't set up. Please tell a staff member.", color=WARN), ephemeral=True)
         wait = COOLDOWN_SECONDS - (time.monotonic() - self.last_sent.get((file_id, member.id), -1e9))
         if wait > 0:
-            return await interaction.response.send_message(embed=ui.card("⏳ One moment", f"Please wait {int(wait) + 1} seconds before asking again.", color=WARN), ephemeral=True)
+            return await interaction.response.send_message(view=ui.card("⏳ One moment", f"Please wait {int(wait) + 1} seconds before asking again.", color=WARN), ephemeral=True)
         self.last_sent[(file_id, member.id)] = time.monotonic()
 
         await interaction.response.defer(ephemeral=True)
         if await send_file_dm(member, guild, f):
             await record_delivery(file_id, member.id)
             how = "a private download link" if f["size"] > ATTACH_LIMIT else "the file"
-            await interaction.followup.send(embed=ui.card("✅ Sent to your DMs", f"I sent **{f['name']}** ({how}) to your direct messages. Check your DMs!", color=SUCCESS), ephemeral=True)
+            await interaction.followup.send(view=ui.card("✅ Sent to your DMs", f"I sent **{f['name']}** ({how}) to your direct messages. Check your DMs!", color=SUCCESS), ephemeral=True)
             await emit(guild, "files", "File sent", ui.kv(("👤 Member", member.mention), ("📦 File", f["name"]), ("📏 Size", human_size(f["size"]))), footer=f"File #{f['id']}", subject=member.id)
         else:
             self.last_sent.pop((file_id, member.id), None)
             await interaction.followup.send(
-                embed=ui.card("📪 I couldn't DM you", "Your DMs are closed. Open **Server Settings → Privacy → Direct Messages** (allow DMs from server members), then press the button again.", color=WARN), ephemeral=True
+                view=ui.card("📪 I couldn't DM you", "Your DMs are closed. Open **Server Settings → Privacy → Direct Messages** (allow DMs from server members), then press the button again.", color=WARN), ephemeral=True
             )
 
     # --------------------------------------------------------- commands ----
@@ -351,7 +351,7 @@ class Files(commands.GroupCog, group_name="files", group_description="Store file
         await interaction.response.defer(ephemeral=True)
         data = await file.read()
         delivery = await self.store_bytes(interaction, name, file.filename, file.content_type, data, description, required_role, once_per_user)
-        await interaction.followup.send(embed=self.stored_card(interaction, name, file.filename, len(data), delivery, required_role, once_per_user), ephemeral=True)
+        await interaction.followup.send(view=self.stored_card(interaction, name, file.filename, len(data), delivery, required_role, once_per_user), ephemeral=True)
 
     @app_commands.command(name="add_link", description="Store a big file by downloading it from a direct link")
     @app_commands.describe(
@@ -399,7 +399,7 @@ class Files(commands.GroupCog, group_name="files", group_description="Store file
         except UserError:
             delete_disk_file(dest)
             raise
-        await interaction.followup.send(embed=self.stored_card(interaction, name, filename, size, delivery, required_role, once_per_user), ephemeral=True)
+        await interaction.followup.send(view=self.stored_card(interaction, name, filename, size, delivery, required_role, once_per_user), ephemeral=True)
 
     @app_commands.command(description="Replace the file inside a stored entry (posts and products keep working)")
     @app_commands.describe(name="Which stored file", file="The new file")
@@ -429,7 +429,7 @@ class Files(commands.GroupCog, group_name="files", group_description="Store file
             (file.filename, file.content_type, len(data), b"" if path else data, path, row["id"]),
         )
         delete_disk_file(row["path"])
-        await interaction.followup.send(embed=ui.card("✅ File replaced", f"**{row['name']}** now contains `{file.filename}` ({human_size(len(data))}). Existing buttons send the new file.", color=SUCCESS), ephemeral=True)
+        await interaction.followup.send(view=ui.card("✅ File replaced", f"**{row['name']}** now contains `{file.filename}` ({human_size(len(data))}). Existing buttons send the new file.", color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="Change a stored file's description, role requirement or once-per-member rule")
     @app_commands.describe(name="Which stored file", description="New description", required_role="Only this role can get it", clear_role="Remove the role requirement", once_per_user="Each member can only receive it once")
@@ -458,7 +458,7 @@ class Files(commands.GroupCog, group_name="files", group_description="Store file
             raise UserError("Nothing to change. Fill in at least one option.")
         assignments = ", ".join(f"{col} = ?" for col in updates)
         await db.execute(f"UPDATE stored_files SET {assignments} WHERE id = ?", (*updates.values(), row["id"]))
-        await interaction.response.send_message(embed=ui.card("✅ Saved", f"Updated **{row['name']}**.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("✅ Saved", f"Updated **{row['name']}**.", color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="See your stored files and how often they were sent")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -477,7 +477,7 @@ class Files(commands.GroupCog, group_name="files", group_description="Store file
         ]
         used = await used_bytes(interaction.guild_id)
         embed = ui.card("📦 Stored files", "\n\n".join(lines), guild=interaction.guild, footer=f"{human_size(used)} of {human_size(storage_cap_bytes())} used · {interaction.guild.name}")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(view=embed, ephemeral=True)
 
     @app_commands.command(description="Delete a stored file (buttons that used it stop working)")
     @app_commands.describe(name="Which stored file")
@@ -489,7 +489,7 @@ class Files(commands.GroupCog, group_name="files", group_description="Store file
         await db.execute("DELETE FROM file_deliveries WHERE file_id = ?", (row["id"],))
         await db.execute("DELETE FROM stored_files WHERE id = ?", (row["id"],))
         delete_disk_file(row["path"])
-        await interaction.response.send_message(embed=ui.card("🗑️ File removed", f"**{row['name']}** was deleted. Any shop product that used it no longer sends a file.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🗑️ File removed", f"**{row['name']}** was deleted. Any shop product that used it no longer sends a file.", color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="Send a stored file to one member by DM right now")
     @app_commands.describe(name="Which stored file", member="Who should get it")
@@ -503,9 +503,9 @@ class Files(commands.GroupCog, group_name="files", group_description="Store file
         if await send_file_dm(member, interaction.guild, row, note=f"Sent to you by {interaction.user.display_name}."):
             await record_delivery(row["id"], member.id)
             await emit(interaction.guild, "files", "File sent by staff", ui.kv(("👤 Member", member.mention), ("📦 File", row["name"]), ("🛡️ By", interaction.user.mention)), footer=f"File #{row['id']}", subject=member.id)
-            await interaction.followup.send(embed=ui.card("✅ Sent", f"**{row['name']}** was sent to {member.mention}.", color=SUCCESS), ephemeral=True)
+            await interaction.followup.send(view=ui.card("✅ Sent", f"**{row['name']}** was sent to {member.mention}.", color=SUCCESS), ephemeral=True)
         else:
-            await interaction.followup.send(embed=ui.card("📪 Couldn't DM them", f"{member.mention} has DMs closed, so I couldn't send it.", color=WARN), ephemeral=True)
+            await interaction.followup.send(view=ui.card("📪 Couldn't DM them", f"{member.mention} has DMs closed, so I couldn't send it.", color=WARN), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

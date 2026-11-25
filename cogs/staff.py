@@ -126,7 +126,7 @@ class HubView(discord.ui.View):
     async def pick(self, interaction: discord.Interaction):
         key = self.select.values[0]
         embed = await hub_embed(self.guild) if key == "home" else await section_embed(self.guild, key)
-        await interaction.response.edit_message(embed=embed, view=self)
+        await interaction.response.edit_message(view=embed.with_view(self))
 
 
 def can_manage_role(guild: discord.Guild, invoker: discord.Member, role: discord.Role) -> None:
@@ -151,7 +151,7 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
     @app_commands.command(description="Open the staff hub (stats, shortcuts and everything needing attention)")
     async def menu(self, interaction: discord.Interaction):
         await require_staff(interaction)
-        await interaction.response.send_message(embed=await hub_embed(interaction.guild), view=HubView(interaction.guild), ephemeral=True)
+        await interaction.response.send_message(view=await hub_embed(interaction.guild).with_view(HubView(interaction.guild)), ephemeral=True)
 
     @app_commands.command(description="Everything about one customer: orders, invites, activity and record")
     @app_commands.describe(member="The customer")
@@ -177,7 +177,7 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
         )
         if lines:
             body += "\n\n**Recent orders**\n" + "\n".join(lines)
-        await interaction.response.send_message(embed=ui.card("🧑‍💼 Customer", body, guild=interaction.guild, thumbnail=member.display_avatar.url, section="Staff"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🧑‍💼 Customer", body, guild=interaction.guild, thumbnail=member.display_avatar.url, section="Staff"), ephemeral=True)
 
     @app_commands.command(description="A member's record: warnings, notes and automod strikes together")
     @app_commands.describe(member="The member")
@@ -196,7 +196,7 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
             raise UserError("Nothing on record for that member. They're clean. ✅")
         events.sort(key=lambda e: e[0], reverse=True)
         lines = [f"{discord.utils.format_dt(discord.utils.parse_time(t), 'd')} {text}" for t, text in events[:15]]
-        await interaction.response.send_message(embed=ui.card(f"📚 Record: {member.display_name}", "\n".join(lines) + (f"\n\n*Showing 15 of {len(events)}.*" if len(events) > 15 else ""), guild=interaction.guild, section="Staff"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"📚 Record: {member.display_name}", "\n".join(lines) + (f"\n\n*Showing 15 of {len(events)}.*" if len(events) > 15 else ""), guild=interaction.guild, section="Staff"), ephemeral=True)
 
     @app_commands.command(description="Add a private staff note to a member")
     @app_commands.describe(member="The member", text="The note (only staff can see it)")
@@ -204,7 +204,7 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
         await require_staff(interaction)
         await db.execute("INSERT INTO staff_notes (guild_id, user_id, author_id, text, created_at) VALUES (?, ?, ?, ?, ?)", (interaction.guild_id, member.id, interaction.user.id, text, discord.utils.utcnow().isoformat()))
         note_id = (await db.fetch_one("SELECT id FROM staff_notes ORDER BY id DESC LIMIT 1"))["id"]
-        await interaction.response.send_message(embed=ui.card("📝 Note added", f"Note `#{note_id}` saved for {member.mention}. Only staff can see it.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("📝 Note added", f"Note `#{note_id}` saved for {member.mention}. Only staff can see it.", color=SUCCESS), ephemeral=True)
         await emit(interaction.guild, "staff", "Staff note added", ui.kv(("👤 Member", member.mention), ("📝 Note", text[:200]), ("🛡️ By", interaction.user.mention), ("🆔 Note", f"`#{note_id}`")), subject=member.id)
 
     @app_commands.command(description="Read the staff notes on a member")
@@ -215,7 +215,7 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
         if not rows:
             raise UserError("There are no notes on that member.")
         lines = [f"`#{r['id']}` {discord.utils.format_dt(discord.utils.parse_time(r['created_at']), 'd')} · <@{r['author_id']}>\n　{r['text']}" for r in rows]
-        await interaction.response.send_message(embed=ui.card(f"📝 Notes: {member.display_name}", "\n".join(lines), guild=interaction.guild, section="Staff"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"📝 Notes: {member.display_name}", "\n".join(lines), guild=interaction.guild, section="Staff"), ephemeral=True)
 
     @app_commands.command(description="Delete a staff note by its number")
     @app_commands.describe(note_id="The note's number")
@@ -225,7 +225,7 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
         if not row:
             raise UserError("I can't find a note with that number.")
         await db.execute("DELETE FROM staff_notes WHERE id = ?", (note_id,))
-        await interaction.response.send_message(embed=ui.card("🗑️ Note deleted", f"Note `#{note_id}` was removed.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("🗑️ Note deleted", f"Note `#{note_id}` was removed.", color=SUCCESS), ephemeral=True)
         await emit(interaction.guild, "staff", "Staff note deleted", ui.kv(("👤 Member", f"<@{row['user_id']}>"), ("🆔 Note", f"`#{note_id}`"), ("🛡️ By", interaction.user.mention)), subject=row["user_id"])
 
     @app_commands.command(description="Give a member a role")
@@ -234,7 +234,7 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
     async def giverole(self, interaction: discord.Interaction, member: discord.Member, role: discord.Role):
         can_manage_role(interaction.guild, interaction.user, role)
         await member.add_roles(role, reason=f"By {interaction.user}")
-        await interaction.response.send_message(embed=ui.card("✅ Role given", f"{member.mention} now has {role.mention}.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("✅ Role given", f"{member.mention} now has {role.mention}.", color=SUCCESS), ephemeral=True)
         await emit(interaction.guild, "staff", "Role given by staff", ui.kv(("👤 Member", member.mention), ("🎭 Role", role.mention), ("🛡️ By", interaction.user.mention)), subject=member.id)
 
     @app_commands.command(description="Take a role away from a member")
@@ -243,7 +243,7 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
     async def takerole(self, interaction: discord.Interaction, member: discord.Member, role: discord.Role):
         can_manage_role(interaction.guild, interaction.user, role)
         await member.remove_roles(role, reason=f"By {interaction.user}")
-        await interaction.response.send_message(embed=ui.card("✅ Role removed", f"{member.mention} no longer has {role.mention}.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("✅ Role removed", f"{member.mention} no longer has {role.mention}.", color=SUCCESS), ephemeral=True)
         await emit(interaction.guild, "staff", "Role taken by staff", ui.kv(("👤 Member", member.mention), ("🎭 Role", role.mention), ("🛡️ By", interaction.user.mention)), subject=member.id)
 
     @app_commands.command(description="Change (or clear) a member's nickname")
@@ -255,7 +255,7 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
             await member.edit(nick=nickname, reason=f"By {interaction.user}")
         except discord.HTTPException:
             raise UserError("I couldn't change that nickname. My role has to be above theirs.") from None
-        await interaction.response.send_message(embed=ui.card("✅ Nickname updated", f"{member.mention}: **{before or '(none)'}** → **{nickname or '(none)'}**", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card("✅ Nickname updated", f"{member.mention}: **{before or '(none)'}** → **{nickname or '(none)'}**", color=SUCCESS), ephemeral=True)
         await emit(interaction.guild, "staff", "Nickname changed by staff", ui.kv(("👤 Member", member.mention), ("⬅️ Before", before or "(none)"), ("➡️ After", nickname or "(none)"), ("🛡️ By", interaction.user.mention)), subject=member.id)
 
 
@@ -314,7 +314,7 @@ class StaffTools(commands.Cog):
         body = (f"Only {role.mention}, you and me can see **🔒 STAFF**." + (" (I created the role.)" if created_role else "")
                 + "\n\n" + ("**New channels**\n" + "\n".join(made) if made else "Everything already existed, nothing new was needed.") + linked
                 + "\n\nOpen the staff menu with `/staff menu`.")
-        await interaction.followup.send(embed=ui.card("✅ Staff area ready", body, color=SUCCESS, guild=guild, section="Staff"), ephemeral=True)
+        await interaction.followup.send(view=ui.card("✅ Staff area ready", body, color=SUCCESS, guild=guild, section="Staff"), ephemeral=True)
         await emit(guild, "staff", "Staff area set up", ui.kv(("🛡️ By", interaction.user.mention), ("🎭 Staff role", role.mention), ("➕ Created", f"{len(made)} channels")), subject=interaction.user.id)
 
     @app_commands.default_permissions(manage_guild=True)
@@ -360,7 +360,7 @@ class StaffTools(commands.Cog):
         problems += bool(risky_sold)
         embed = ui.card("🔍 Server audit", "\n\n".join(f"**{name}**\n{text}" for name, text in notes), guild=guild, section="Audit",
                         footer=("Nothing was changed. " + (f"{problems} thing(s) need attention." if problems else "All clear.")))
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.followup.send(view=embed, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
