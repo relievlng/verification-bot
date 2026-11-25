@@ -115,33 +115,39 @@ class CardView(discord.ui.LayoutView):
         self.container = discord.ui.Container(*children, accent_color=accent)
         self.add_item(self.container)
 
-        # Attach any extra interactive items wrapped in ActionRows (V2 requirement)
+        # Extra interactive items go inside the container, so they render within the card
         if extra_views:
-            for i in range(0, max(1, len(extra_views)), 5):
-                row_items = extra_views[i:i + 5]
-                if row_items:
-                    self.add_item(discord.ui.ActionRow(*row_items))
+            self._add_rows(extra_views)
+
+    def _add_rows(self, items) -> None:
+        """Pack interactive items into ActionRows inside the container, so buttons and
+        selects render within the card instead of floating beneath it. Grouping mirrors
+        discord.py's own layout: items pack by width (button=1, select=5) up to 5 per
+        row, which keeps each select alone on its row. DynamicItem buttons report the
+        wrapped item's width, so they pack like ordinary buttons."""
+        row_items: list = []
+        width = 0
+        for item in items:
+            w = getattr(item, "width", 1)
+            if row_items and width + w > 5:
+                self.container.add_item(discord.ui.ActionRow(*row_items))
+                row_items, width = [], 0
+            row_items.append(item)
+            width += w
+        if row_items:
+            self.container.add_item(discord.ui.ActionRow(*row_items))
 
     def with_view(self, other: "discord.ui.View | None") -> "CardView":
-        """Merge another View's interactive items (buttons, selects) into this LayoutView.
+        """Merge another View's interactive items (buttons, selects) into this card.
 
-        Components V2 only allows one view= per message. When a card and an
-        interactive view must both appear, call card.with_view(interactive_view)
-        and pass the result as the sole view= argument.
-
-        In V2, interactive items must live inside ActionRows, and ActionRows
-        are added directly to the LayoutView (not to any Container inside it).
+        Components V2 allows only one view= per message. When a card and an interactive
+        view must both appear, call card.with_view(interactive_view) and pass the result
+        as the sole view= argument. The items are wrapped in ActionRows placed inside the
+        card's container, so they render within the card, not beneath it.
         """
         if other is None:
             return self
-        # Group children into ActionRows of up to 5 items each
-        children = list(other.children)
-        for i in range(0, max(1, len(children)), 5):
-            row_items = children[i:i + 5]
-            if not row_items:
-                break
-            action_row = discord.ui.ActionRow(*row_items)
-            self.add_item(action_row)
+        self._add_rows(list(other.children))
         return self
 
     # ------------------------------------------------------------------ compat shims --
