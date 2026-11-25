@@ -115,10 +115,12 @@ class CardView(discord.ui.LayoutView):
         self.container = discord.ui.Container(*children, accent_color=accent)
         self.add_item(self.container)
 
-        # Attach any extra interactive items directly to the LayoutView (not into the Container)
+        # Attach any extra interactive items wrapped in ActionRows (V2 requirement)
         if extra_views:
-            for item in extra_views:
-                self.add_item(item)
+            for i in range(0, max(1, len(extra_views)), 5):
+                row_items = extra_views[i:i + 5]
+                if row_items:
+                    self.add_item(discord.ui.ActionRow(*row_items))
 
     def with_view(self, other: "discord.ui.View | None") -> "CardView":
         """Merge another View's interactive items (buttons, selects) into this LayoutView.
@@ -127,14 +129,19 @@ class CardView(discord.ui.LayoutView):
         interactive view must both appear, call card.with_view(interactive_view)
         and pass the result as the sole view= argument.
 
-        Interactive items (buttons, selects) must be added directly to the
-        LayoutView, NOT to a Container inside it.
+        In V2, interactive items must live inside ActionRows, and ActionRows
+        are added directly to the LayoutView (not to any Container inside it).
         """
         if other is None:
             return self
-        for item in other.children:
-            # Add interactive items directly to the LayoutView (self), not to the container
-            self.add_item(item)
+        # Group children into ActionRows of up to 5 items each
+        children = list(other.children)
+        for i in range(0, max(1, len(children)), 5):
+            row_items = children[i:i + 5]
+            if not row_items:
+                break
+            action_row = discord.ui.ActionRow(*row_items)
+            self.add_item(action_row)
         return self
 
     # ------------------------------------------------------------------ compat shims --
