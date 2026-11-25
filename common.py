@@ -120,6 +120,29 @@ def compact(**kwargs) -> dict:
     return {k: v for k, v in kwargs.items() if v is not None}
 
 
+def v2(kwargs: dict) -> dict:
+    """Normalize a raw send/DM kwargs dict for Components V2.
+
+    ui.card()/ui.note()/card_builder().build() return a CardView (a LayoutView),
+    not a discord.Embed. If such a CardView is passed under 'embed', discord.py
+    calls Embed.to_dict() on it and raises AttributeError. Move it to 'view',
+    merging any interactive view already in the dict into the card's ActionRows
+    via with_view. No-op for a real embed, a missing/None embed, or a dict that
+    never carried one. Use at raw channel.send(**kwargs) / user.send(**kwargs)
+    sites that bypass reply()."""
+    card = kwargs.get("embed")
+    if card is None:
+        return kwargs
+    try:
+        from ui import CardView  # local import to avoid circular
+    except ImportError:
+        return kwargs
+    if isinstance(card, CardView):
+        kwargs["view"] = card.with_view(kwargs.pop("view", None))
+        del kwargs["embed"]
+    return kwargs
+
+
 async def reply(interaction: discord.Interaction, **kwargs):
     """Respond to an interaction whether or not it has been answered yet (ephemeral by default).
 

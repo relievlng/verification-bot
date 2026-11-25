@@ -187,6 +187,23 @@ class CardView(discord.ui.LayoutView):
             pass
         return self
 
+    def add_images(self, urls: list[str]) -> "CardView":
+        """Add several images as a single MediaGallery grid (Discord draws up to 10).
+
+        The Components V2 replacement for the old trick of multiple embeds sharing
+        one url so Discord renders them as a grid."""
+        urls = [u for u in urls if u][:10]
+        if not urls:
+            return self
+        try:
+            gallery = discord.ui.MediaGallery()
+            for u in urls:
+                gallery.add_item(media=u)
+            self.container.add_item(gallery)
+        except Exception:
+            pass
+        return self
+
     def set_author(self, *, name: str, url: Optional[str] = None, icon_url: Optional[str] = None) -> "CardView":
         self._append_text(f"**{name}**")
         return self

@@ -10,7 +10,7 @@ import db
 import ui
 from cogs.files import file_autocomplete, send_file_dm
 from cogs.tickets import support_button
-from common import ACCENT, COLOR, DANGER, SUCCESS, WARN, UserError, check_can_send, parse_duration
+from common import ACCENT, COLOR, DANGER, SUCCESS, WARN, UserError, check_can_send, parse_duration, v2
 from giveawayutil import pick_winners
 from logutil import emit
 
@@ -257,7 +257,7 @@ class Giveaways(commands.GroupCog, group_name="giveaway", group_description="Run
         if view is not None:
             kwargs["view"] = view
         try:
-            await channel.send(**kwargs)
+            await channel.send(**v2(kwargs))
         except discord.HTTPException:
             log.warning("Couldn't announce giveaway %s", g["id"])
 

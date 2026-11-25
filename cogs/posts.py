@@ -13,7 +13,7 @@ from discord.ext import commands
 import db
 import ui
 from cogs.files import GetFileButton, file_autocomplete
-from common import COLOR, UserError, check_can_send, parse_color
+from common import COLOR, UserError, check_can_send, parse_color, v2
 from logutil import emit
 
 log = logging.getLogger("verification-bot")
@@ -113,33 +113,26 @@ class Draft:
         message's attachments ABOVE its embeds, so sending it separately is the only way to get the file at the bottom."""
         return bool((self.extra_file and self.extra_file[1] is not None) or self.extra_parts)
 
-    def embeds(self) -> list[discord.Embed]:
+    def layout(self) -> Optional["ui.CardView"]:
+        """The whole post as one Components V2 CardView: text, every photo in a single
+        MediaGallery grid, then the GIF. Buttons are NOT included; callers merge their
+        own interactive view with .with_view()."""
         color = self.color if self.color is not None else COLOR
         main_image = f"attachment://{self.photo[0]}" if self.photo else self.photo_url
         has_file_field = bool(self.file and self.show_file_field)
-        embeds = []
-        if self.title or self.description or self.footer or main_image or has_file_field:
-            main = ui.card(self.title, self.description, color=color, footer=self.footer)
-            if main_image:
-                main.set_image(url=main_image)  # the big photo
-            if has_file_field:
-                main.add_field(name="📎 File", value=f"`{self.file[0]}` · {human_size(self.file[2])}\nAttached to this post ⬇️", inline=False)
-            embeds.append(main)
         shown, _ = self.gallery()
-        if shown and embeds and main_image:
-            # Embeds sharing one url are drawn by Discord as a single image grid (up to 4 per grid), so the
-            # extra photos sit together with the main one instead of as a stack of separate cards.
-            for i, item in enumerate(shown):
-                group = (i + 1) // 4  # the main photo is image 0 of grid 0
-                anchor = f"{GALLERY_URL}?g={group}"
-                if group == 0:
-                    embeds[0].url = anchor
-                embeds.append(discord.Embed(url=anchor, color=color).set_image(url=f"attachment://{item[0]}"))
-        if not self.gif_separate:
-            gif = self.gif_embed()
-            if gif is not None:
-                embeds.append(gif)  # the GIF gets its own spot under the card
-        return embeds
+        images = ([main_image] if main_image else []) + [f"attachment://{item[0]}" for item in shown]
+        gif_image = None if self.gif_separate else (f"attachment://{self.gif[0]}" if self.gif else self.gif_url)
+        if not (self.title or self.description or self.footer or has_file_field or images or gif_image):
+            return None
+        card = ui.card(self.title, self.description, color=color, footer=self.footer)
+        if has_file_field:
+            card.add_field(name="📎 File", value=f"`{self.file[0]}` · {human_size(self.file[2])}\nAttached to this post ⬇️", inline=False)
+        if images:
+            card.add_images(images)  # main photo + gallery, one grid
+        if gif_image:
+            card.add_images([gif_image])  # the GIF gets its own block under the card
+        return card
 
     def gif_embed(self) -> Optional[discord.Embed]:
         gif_image = f"attachment://{self.gif[0]}" if self.gif else self.gif_url
@@ -162,7 +155,13 @@ class Draft:
             mentions = discord.AllowedMentions(roles=[self.ping] if self.ping else False, users=False, everyone=bool(self.mention_all))
         else:
             mentions = discord.AllowedMentions.none()
-        kw = {"embeds": self.embeds(), "allowed_mentions": mentions}
+        kw: dict = {"allowed_mentions": mentions}
+        layout = self.layout()
+        buttons = self.view()
+        if layout is not None:
+            kw["view"] = layout.with_view(buttons)  # card + photos + GIF, buttons merged in
+        elif buttons is not None:
+            kw["view"] = buttons
         mention_text = " ".join(x for x in ({"everyone": "@everyone", "here": "@here"}.get(self.mention_all), self.ping.mention if self.ping else None) if x)
         content = " ".join(x for x in (self.content, mention_text) if x)
         if content:
@@ -170,9 +169,6 @@ class Draft:
         files = self.files(include_extra)
         if files:
             kw["files"] = files
-        view = self.view()
-        if view is not None:
-            kw["view"] = view
         return kw
 
     def data(self) -> str:
@@ -242,7 +238,7 @@ async def publish_draft(guild: discord.Guild, user, draft: Draft) -> discord.Mes
             kw = {"embed": draft.gif_embed(), "allowed_mentions": discord.AllowedMentions.none()}
             if draft.gif and draft.gif[1] is not None:
                 kw["file"] = discord.File(io.BytesIO(draft.gif[1]), filename=draft.gif[0])
-            await draft.channel.send(**kw)
+            await draft.channel.send(**v2(kw))
         except discord.HTTPException:
             log.exception("Couldn't post the GIF under post %s", message.id)
     await db.execute(
@@ -507,7 +503,9 @@ class Posts(commands.GroupCog, group_name="post", group_description="Posts with 
             note += f"\n📥 It will have a **Get file** button that sends **{m.deliver[1]}** to members by DM."
         if button:
             note += f"\n🔗 It will have a **{button[0]}** button linking to {button[1]}"
-        await interaction.followup.send(content=note, ephemeral=True, view=ConfirmView(interaction.user.id, draft), embeds=draft.embeds(), files=draft.files())
+        layout = draft.layout()
+        confirm = ConfirmView(interaction.user.id, draft)
+        await interaction.followup.send(content=note, ephemeral=True, view=layout.with_view(confirm) if layout else confirm, files=draft.files())
 
     async def apply_edit(self, interaction: discord.Interaction, m: PostModal) -> None:
         message, row = m.edit_target
@@ -534,7 +532,8 @@ class Posts(commands.GroupCog, group_name="post", group_description="Posts with 
         kept = {item[0] for item in (draft.photo, None if draft.gif_separate else draft.gif, draft.file, *draft.gallery()[0]) if item and item[1] is None}
         keep = [a for a in message.attachments if a.filename in kept]
         try:
-            await message.edit(embeds=draft.embeds(), attachments=keep + draft.files(), view=draft.view())
+            layout = draft.layout()
+            await message.edit(view=layout.with_view(draft.view()) if layout else draft.view(), attachments=keep + draft.files())
         except discord.HTTPException as e:
             raise UserError(f"I couldn't edit that post: {e}. Check my permissions and the file sizes.") from None
         await db.execute("UPDATE posts SET title = ?, pack_name = ?, file_name = ?, data = ? WHERE id = ?", (draft.title, draft.pack, draft.file[0] if draft.file else None, draft.data(), row["id"]))

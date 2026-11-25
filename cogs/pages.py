@@ -135,7 +135,12 @@ async def publish(guild: discord.Guild, row, channel: discord.TextChannel):
         await refresh(guild, row)
         return existing
     parts = await render(guild, row)
-    message = await channel.send(**parts, allowed_mentions=discord.AllowedMentions.none())
+    file = parts.get("file")
+    message = await channel.send(
+        view=parts["embed"].with_view(parts.get("view")),
+        allowed_mentions=discord.AllowedMentions.none(),
+        **({"file": file} if file else {}),
+    )
     await db.execute("UPDATE pages SET channel_id = ?, message_id = ? WHERE id = ?", (channel.id, message.id, row["id"]))
     return message
 
@@ -279,7 +284,12 @@ class SinglePageBase:
         if row is None or not (row["body"] or row["title"]):
             raise UserError("Nothing has been written here yet. Staff can add it with the **edit** command.")
         parts = await render(interaction.guild, row)
-        await interaction.response.send_message(ephemeral=True, **parts)
+        file = parts.get("file")
+        await interaction.response.send_message(
+            ephemeral=True,
+            view=parts["embed"].with_view(parts.get("view")),
+            **({"file": file} if file else {}),
+        )
 
     @app_commands.command(description="Post it in a channel (or update the posted copy)")
     @app_commands.describe(channel="Where to post it")

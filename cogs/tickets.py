@@ -13,7 +13,7 @@ from discord.ext import commands, tasks
 
 import db
 import ui
-from common import ACCENT, COLOR, DANGER, INFO, LINK_RE, SUCCESS, WARN, UserError, check_can_send, is_staff, parse_color, reply, staff_ids, support_button
+from common import ACCENT, COLOR, DANGER, INFO, LINK_RE, SUCCESS, WARN, UserError, check_can_send, is_staff, parse_color, reply, staff_ids, support_button, v2
 from cogs.reviews import ProductReviewButton, add_ticket_review_comment, post_ticket_review, product_channel_id, staff_channel_id
 from logutil import emit
 from macros import MACROS, macro_label, macro_name
@@ -796,7 +796,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
                         v.add_item(link)
                         kwargs["view"] = v
                 try:
-                    await user.send(**kwargs)
+                    await user.send(**v2(kwargs))
                 except discord.HTTPException:
                     pass  # DMs closed
 

@@ -505,7 +505,7 @@ class AutoUpload(commands.Cog):
         # Image/video/audio previews go inline when small enough to attach directly -- images as the embed's big
         # photo, video/audio attached to the message so Discord renders its native player. Either way the
         # attachment is given a clean generic name (not the messy original filename), and show_file_field=False
-        # hides the "📎 File <name>" text Draft.embeds() would otherwise add -- the point is a clean post with no
+        # hides the "📎 File <name>" text Draft.layout() would otherwise add -- the point is a clean post with no
         # filename text visible anywhere, just the pack name, the preview, and the Get-file button.
         photo = file_attach = None
         too_large_for_preview = False

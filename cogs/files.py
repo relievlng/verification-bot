@@ -18,7 +18,7 @@ from discord.ext import commands
 
 import db
 import ui
-from common import SUCCESS, WARN, UserError
+from common import SUCCESS, WARN, UserError, v2
 from fileutil import (ATTACH_LIMIT, LINK_SECONDS, blocked_extension, check_public_url, filename_from_url, human_size, make_token,
                       max_file_bytes, public_base_url, safe_filename, signing_key, storage_cap_bytes, verify_token)
 from logutil import emit
@@ -136,7 +136,7 @@ async def send_file_dm(user: discord.abc.User, guild: discord.Guild, f, title: s
     if kwargs is None:
         return False
     try:
-        await user.send(**kwargs)
+        await user.send(**v2(kwargs))
         return True
     except discord.HTTPException:
         return False
