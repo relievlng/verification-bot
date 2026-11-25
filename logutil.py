@@ -83,8 +83,12 @@ def clip(text: str | None, limit: int = 1000) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-async def send_log(guild: discord.Guild, category: str, embed: discord.Embed, view=None) -> bool:
-    """Send an embed to the log channel for this category (respecting toggles and routes)."""
+async def send_log(guild: discord.Guild, category: str, embed: "ui.CardView", view=None) -> bool:
+    """Send a log card to the channel for this category (respecting toggles and routes).
+
+    'embed' is a Components V2 CardView, so it ships as view=, not embed=. Any interactive
+    view is merged into the card's ActionRows via with_view (a no-op when view is None).
+    """
     cfg = await db.get_config(guild.id)
     if not cfg:
         return False
@@ -100,7 +104,7 @@ async def send_log(guild: discord.Guild, category: str, embed: discord.Embed, vi
     if channel is None:
         return False
     try:
-        await channel.send(embed=embed, **({"view": view} if view is not None else {}))
+        await channel.send(view=embed.with_view(view))
         return True
     except discord.HTTPException:
         return False
