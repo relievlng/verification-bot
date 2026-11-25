@@ -101,7 +101,7 @@ class CardView(discord.ui.LayoutView):
             # Use a Section with Thumbnail accessory for the top part
             section = discord.ui.Section(
                 discord.ui.TextDisplay(text_content),
-                accessory=discord.ui.Thumbnail(url=thumbnail_url),
+                accessory=discord.ui.Thumbnail(thumbnail_url),
             )
             children.append(section)
         else:
@@ -164,7 +164,7 @@ class CardView(discord.ui.LayoutView):
         if td is None:
             self.container.add_item(discord.ui.TextDisplay(extra))
         else:
-            td._content = (td._content or "") + "\n\n" + extra  # type: ignore[attr-defined]
+            td.content = (td.content or "") + "\n\n" + extra
 
     def add_field(self, *, name: str, value: str, inline: bool = True) -> "CardView":
         self._append_text(f"**{name}**\n{value}")
@@ -196,11 +196,11 @@ class CardView(discord.ui.LayoutView):
         """Compat: read the TextDisplay content."""
         for child in self.container.children:
             if isinstance(child, discord.ui.TextDisplay):
-                return child._content or ""  # type: ignore[attr-defined]
+                return child.content or ""  
             if isinstance(child, discord.ui.Section):
                 for sc in child.children:
                     if isinstance(sc, discord.ui.TextDisplay):
-                        return sc._content or ""  # type: ignore[attr-defined]
+                        return sc.content or ""  
         return ""
 
     @description.setter
@@ -208,12 +208,12 @@ class CardView(discord.ui.LayoutView):
         """Compat: replace the TextDisplay content."""
         for child in self.container.children:
             if isinstance(child, discord.ui.TextDisplay):
-                child._content = value  # type: ignore[attr-defined]
+                child.content = value  
                 return
             if isinstance(child, discord.ui.Section):
                 for sc in child.children:
                     if isinstance(sc, discord.ui.TextDisplay):
-                        sc._content = value  # type: ignore[attr-defined]
+                        sc.content = value  
                         return
         self.container.add_item(discord.ui.TextDisplay(value))
 
