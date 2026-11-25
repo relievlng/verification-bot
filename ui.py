@@ -110,14 +110,13 @@ class CardView(discord.ui.LayoutView):
         if image_url:
             children.append(discord.ui.MediaGallery(discord.ui.MediaGalleryItem(url=image_url)))
 
-        # Attach any extra interactive views (buttons etc.) if passed
-        if extra_views:
-            children.append(discord.ui.Separator(visible=False))
-            for item in extra_views:
-                children.append(item)
-
         self.container = discord.ui.Container(*children, accent_color=accent)
         self.add_item(self.container)
+
+        # Attach any extra interactive items directly to the LayoutView (not into the Container)
+        if extra_views:
+            for item in extra_views:
+                self.add_item(item)
 
     def with_view(self, other: "discord.ui.View | None") -> "CardView":
         """Merge another View's interactive items (buttons, selects) into this LayoutView.
@@ -125,11 +124,15 @@ class CardView(discord.ui.LayoutView):
         Components V2 only allows one view= per message. When a card and an
         interactive view must both appear, call card.with_view(interactive_view)
         and pass the result as the sole view= argument.
+
+        Interactive items (buttons, selects) must be added directly to the
+        LayoutView, NOT to a Container inside it.
         """
         if other is None:
             return self
         for item in other.children:
-            self.container.add_item(item)
+            # Add interactive items directly to the LayoutView (self), not to the container
+            self.add_item(item)
         return self
 
     # ------------------------------------------------------------------ compat shims --
