@@ -109,7 +109,7 @@ class CardView(discord.ui.LayoutView):
 
         if image_url:
             gallery = discord.ui.MediaGallery()
-            gallery.add(image_url)
+            gallery.add_item(media=image_url)
             children.append(gallery)
 
         self.container = discord.ui.Container(*children, accent_color=accent)
@@ -174,7 +174,7 @@ class CardView(discord.ui.LayoutView):
     def set_image(self, *, url: str) -> "CardView":
         try:
             gallery = discord.ui.MediaGallery()
-            gallery.add(url)
+            gallery.add_item(media=url)
             self.container.add_item(gallery)
         except Exception:
             pass
