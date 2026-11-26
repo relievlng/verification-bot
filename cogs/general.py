@@ -8,7 +8,7 @@ from discord.ext import commands
 
 import db
 import ui
-from common import COLOR, INFO, UserError, check_can_send, parse_color, E
+from common import COLOR, INFO, UserError, E
 
 GROUP_CATEGORY = {
     "verify": "Verification", "welcome": "Welcome", "logs": "Logs", "shop": "Shop", "ticket": "Tickets", "template": "Templates", "reviews": "Reviews",

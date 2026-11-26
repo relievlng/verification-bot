@@ -13,7 +13,7 @@ from discord.ext import commands
 
 import db
 import ui
-from common import COLOR, SUCCESS, WARN, UserError, parse_color, themed, E
+from common import COLOR, SUCCESS, UserError, parse_color, themed, E
 from fileutil import public_base_url
 from logutil import emit
 

@@ -11,7 +11,7 @@ from discord.ext import commands
 import db
 import ui
 from cogs.pages import check_attachment, drop_image, store_image
-from common import ACCENT, CARD_ACCENT_HEX, COLOR, DANGER, INFO, SUCCESS, UserError, WARN, check_can_send, check_role, compact, ordinal, parse_color, render, E
+from common import ACCENT, CARD_ACCENT_HEX, COLOR, SUCCESS, UserError, WARN, check_can_send, check_role, compact, ordinal, parse_color, render, E
 from welcomecard import render_card
 
 log = logging.getLogger("verification-bot")

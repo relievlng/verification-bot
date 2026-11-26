@@ -5,7 +5,7 @@ from discord.ext import commands
 import db
 import ui
 from common import SUCCESS, WARN, UserError, E
-from guildlock import allowed_ids, enforce_lock, env_allowed, lock_enabled, stored_allowed
+from guildlock import allowed_ids, enforce_lock, env_allowed, lock_enabled
 
 
 @app_commands.guild_only()

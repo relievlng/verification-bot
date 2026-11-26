@@ -8,7 +8,7 @@ from discord.ext import commands
 
 import db
 import ui
-from common import LINK_RE, SUCCESS, WARN, UserError, is_staff, staff_ids, E
+from common import LINK_RE, SUCCESS, UserError, is_staff, staff_ids, E
 from logutil import emit
 
 log = logging.getLogger("verification-bot")

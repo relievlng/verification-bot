@@ -16,7 +16,7 @@ from discord.ext import commands
 import db
 import ui
 from cogs.files import file_autocomplete, file_payload, record_delivery
-from common import ACCENT, COLOR, INFO, LINK_RE, SUCCESS, WARN, UserError, check_can_send, parse_color, v2, E
+from common import ACCENT, COLOR, LINK_RE, SUCCESS, WARN, UserError, check_can_send, parse_color, v2, E
 from fileutil import ATTACH_LIMIT, LINK_SECONDS, human_size
 from logutil import emit
 

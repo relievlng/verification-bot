@@ -9,7 +9,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import ui
-from common import SUCCESS, WARN, UserError, check_can_send, E
+from common import SUCCESS, UserError, check_can_send, E
 from fileutil import human_size
 from logutil import emit
 
