@@ -16,7 +16,6 @@ import ui
 from common import ACCENT, COLOR, DANGER, INFO, LINK_RE, SUCCESS, WARN, UserError, check_can_send, is_staff, parse_color, reply, staff_ids, support_button, themed, themed_component, v2, E
 from cogs.reviews import ProductReviewButton, add_ticket_review_comment, post_ticket_review, product_channel_id, staff_channel_id
 from logutil import emit
-from macros import MACROS, macro_label, macro_name
 from transcript import render_transcript
 
 log = logging.getLogger("verification-bot")
@@ -97,10 +96,9 @@ def parse_iso(value: str):
 # ---------------------------------------------------------------- UI ----
 
 class TicketModal(discord.ui.Modal):
-    def __init__(self, cog: "Tickets", ttype, macro: Optional[str] = None):
-        title = f"{ttype['name']} · {macro_name(macro)}" if macro in MACROS else f"{ttype['name']} ticket"
-        super().__init__(title=title[:45])
-        self.cog, self.ttype, self.macro = cog, ttype, macro
+    def __init__(self, cog: "Tickets", ttype):
+        super().__init__(title=f"{ttype['name']} ticket"[:45])
+        self.cog, self.ttype = cog, ttype
         self.subject_input = discord.ui.TextInput(label="Subject", max_length=100, placeholder="A short summary")
         self.details_input = discord.ui.TextInput(
             label="Details", style=discord.TextStyle.paragraph, max_length=1000, placeholder="Tell us what's going on"
@@ -114,8 +112,7 @@ class TicketModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: discord.Interaction):
         invoice = self.invoice_input.value if self.invoice_input else None
-        await self.cog.safe(interaction, self.cog.create_ticket(interaction, self.ttype, self.subject_input.value, self.details_input.value, invoice,
-                                                                self.macro))
+        await self.cog.safe(interaction, self.cog.create_ticket(interaction, self.ttype, self.subject_input.value, self.details_input.value, invoice))
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
         log.exception("Ticket modal error", exc_info=error)
@@ -233,22 +230,6 @@ class ChooseTypeView(discord.ui.View):
 
         async def callback(interaction: discord.Interaction):
             await cog.safe(interaction, cog.on_panel_choice(interaction, select.values[0]))
-
-        select.callback = callback
-        self.add_item(select)
-
-
-class MacroPickView(discord.ui.View):
-    """Shown privately after choosing a ticket type: which macro is the ticket about?"""
-
-    def __init__(self, cog: "Tickets", ttype):
-        super().__init__(timeout=300)
-        options = [discord.SelectOption(label=name, value=mid, emoji=emoji) for mid, (name, emoji) in MACROS.items()]
-        options.append(discord.SelectOption(label="Something else", value="other", emoji="💬", description="Not about a macro"))
-        select = discord.ui.Select(placeholder="Which macro is this about?", options=options)
-
-        async def callback(interaction: discord.Interaction):
-            await interaction.response.send_modal(TicketModal(cog, ttype, select.values[0]))
 
         select.callback = callback
         self.add_item(select)
@@ -431,7 +412,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             status = f"{E.hourglass} Waiting for staff"
         welcome = ttype["welcome"] if ttype and ttype["welcome"] else DEFAULT_WELCOME
         info = ui.kv(
-            (f"{E.user} Opened by", f"<@{t['user_id']}>"), (f"{E.game} Macro", macro_label(t["macro"]) if "macro" in t.keys() and t["macro"] else None),
+            (f"{E.user} Opened by", f"<@{t['user_id']}>"),
             ("🚦 Priority", f"{p_emoji} {p_label}"), (f"{E.pin} Status", status),
             (f"{E.tack} Subject", t["subject"]), (f"{E.receipt} Invoice ID", f"`{t['invoice_code']}`" if t["invoice_code"] else None),
         )
@@ -580,15 +561,13 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         if problem:
             raise UserError(problem)
         if chosen["kind"] == "application":
-            # applications aren't about a macro - go straight to the question form
             await interaction.response.send_modal(ApplicationModal(self, chosen))
             return
-        await reply(interaction, view=simple(f"{E.ticket} {chosen['name']}", "Which macro do you need help with?", INFO).with_view(MacroPickView(self, chosen)))
+        await interaction.response.send_modal(TicketModal(self, chosen))
 
     # ----------------------------------------------------- ticket life ----
 
-    async def create_ticket(self, interaction: discord.Interaction, ttype, subject: str, details: str, invoice: Optional[str],
-                            macro: Optional[str] = None) -> None:
+    async def create_ticket(self, interaction: discord.Interaction, ttype, subject: str, details: str, invoice: Optional[str]) -> None:
         guild, member = interaction.guild, interaction.user
         cfg = await self.cfg_or_error(guild.id)
         problem = await self.can_open(guild, member, cfg)
@@ -618,9 +597,9 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             number = (await db.fetch_one("SELECT COALESCE(MAX(number), 0) + 1 AS n FROM tickets WHERE guild_id = ?", (guild.id,)))["n"]
             try:
                 channel = await guild.create_text_channel(
-                    f"ticket-{number:04d}-" + (slugify(macro_name(macro), "macro", 12) + "-" if macro in MACROS else "") + slugify(member.display_name),
+                    f"ticket-{number:04d}-" + slugify(member.display_name),
                     category=category, overwrites=overwrites,
-                    topic=f"{ttype['name']} ticket" + (f" · {macro_name(macro)} macro" if macro in MACROS else "") + f" for {member} (ID {member.id})",
+                    topic=f"{ttype['name']} ticket for {member} (ID {member.id})",
                     reason=f"Ticket opened by {member}",
                 )
             except discord.Forbidden:
@@ -629,9 +608,9 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
                 raise UserError("I couldn't create the ticket channel. The ticket category may be full (50 channels max). Please tell an admin.") from None
             try:
                 await db.execute(
-                    "INSERT INTO tickets (guild_id, number, channel_id, user_id, type_name, subject, details, invoice_code, created_at, last_activity, macro) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (guild.id, number, channel.id, member.id, ttype["name"], subject.strip(), details.strip(), invoice_code, now, now, macro),
+                    "INSERT INTO tickets (guild_id, number, channel_id, user_id, type_name, subject, details, invoice_code, created_at, last_activity) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (guild.id, number, channel.id, member.id, ttype["name"], subject.strip(), details.strip(), invoice_code, now, now),
                 )
                 break
             except aiosqlite.IntegrityError:  # two tickets raced for the same number
@@ -659,7 +638,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         if ttype["kind"] == "application" and details.strip():   # full answers, untruncated
             await channel.send(view=ui.card(f"{E.clipboard} {ttype['name']}", details[:4000], color=ACCENT, section="Tickets"))
 
-        await emit(guild, "tickets", f"{E.ticket} Ticket opened", ui.kv((f"{E.user} Opened by", f"{member.mention} (`{member.id}`)"), (f"{E.pin} Channel", channel.mention), (f"{E.ticket} Ticket", f"{number_label(t)} · {ttype['name']}"), (f"{E.game} Macro", macro_label(macro) if macro else None), (f"{E.tack} Subject", subject.strip()), (f"{E.receipt} Invoice", f"`{invoice_code}`" if invoice_code else None)), COLOR, subject=member.id, ids=(("ticket", number_label(t)), ("channel", channel.id)))
+        await emit(guild, "tickets", f"{E.ticket} Ticket opened", ui.kv((f"{E.user} Opened by", f"{member.mention} (`{member.id}`)"), (f"{E.pin} Channel", channel.mention), (f"{E.ticket} Ticket", f"{number_label(t)} · {ttype['name']}"), (f"{E.tack} Subject", subject.strip()), (f"{E.receipt} Invoice", f"`{invoice_code}`" if invoice_code else None)), COLOR, subject=member.id, ids=(("ticket", number_label(t)), ("channel", channel.id)))
         await interaction.followup.send(view=simple(f"{E.check} Ticket created", f"Head over to {channel.mention}. A staff member will be with you soon.", COLOR), ephemeral=True)
 
     async def invoice_embed(self, guild: discord.Guild, member: discord.Member, code: str) -> discord.Embed:
