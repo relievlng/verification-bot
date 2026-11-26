@@ -21,6 +21,9 @@ STAFF_WORDS = ("staff", "mod", "admin", "owner", "private", "logs", "orders", "t
 STAFF_TEXT = [("staff-chat", "Talk with the team"), ("staff-commands", "Run bot commands here"), ("staff-orders", "Order problems and manual fulfilment"),
               ("staff-giveaways", "Plan and run giveaways"), ("staff-announcements", "Internal notices")]
 STAFF_VOICE = ["Staff VC 1", "Staff VC 2", "Meeting room"]
+# Stable identifier: a category/channel name must not change (and can't render a
+# custom emoji), so it stays a literal and is never swept into the emoji registry.
+STAFF_CATEGORY = "🔒 STAFF"
 
 SECTIONS = {
     "shop": (f"{E.cart} Shop and orders", [
@@ -290,10 +293,10 @@ class StaffTools(commands.Cog):
             role: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True, connect=True, speak=True),
             guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, embed_links=True, attach_files=True, read_message_history=True, connect=True),
         }
-        category = next((c for c in guild.categories if c.name == f"{E.lock} STAFF"), None)
+        category = next((c for c in guild.categories if c.name == STAFF_CATEGORY), None)
         if category is None:
             try:
-                category = await guild.create_category(f"{E.lock} STAFF", overwrites=overwrites, reason="Staff setup")
+                category = await guild.create_category(STAFF_CATEGORY, overwrites=overwrites, reason="Staff setup")
             except discord.Forbidden:
                 raise UserError("I need the **Manage Channels** permission to build the staff area.") from None
         made = []
@@ -311,7 +314,7 @@ class StaffTools(commands.Cog):
         if cfg is not None and not staff_ids(cfg):
             await db.upsert_ticket_config(guild.id, staff_roles=str(role.id))
             linked = f"\n\n{E.ticket} {role.mention} is now also your ticket staff role."
-        body = (f"Only {role.mention}, you and me can see **{E.lock} STAFF**." + (" (I created the role.)" if created_role else "")
+        body = (f"Only {role.mention}, you and me can see **{STAFF_CATEGORY}**." + (" (I created the role.)" if created_role else "")
                 + "\n\n" + ("**New channels**\n" + "\n".join(made) if made else "Everything already existed, nothing new was needed.") + linked
                 + "\n\nOpen the staff menu with `/staff menu`.")
         await interaction.followup.send(view=ui.card(f"{E.check} Staff area ready", body, color=SUCCESS, guild=guild, section="Staff"), ephemeral=True)

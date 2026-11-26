@@ -37,19 +37,23 @@ _EMOJI_IDS = {
     "search": 0, "fire": 0, "flag": 0, "clean": 0, "door": 0, "clipboard": 0, "id": 0,
     "hashtag": 0, "scale": 0, "seed": 0, "save": 0, "bug": 0, "inbox": 0, "outbox": 0,
 }
+# Fallbacks use only well-supported Geometric Shapes / Dingbats glyphs so they
+# render as clean monochrome marks on Discord (no broken boxes) before the custom
+# emoji images are uploaded. They repeat by design; the uploaded pack gives the
+# distinct icons.
 _EMOJI_FALLBACK = {
-    "check": "✓", "cross": "✗", "warn": "⚠", "info": "ⓘ", "alert": "◉", "star": "★",
-    "ticket": "▫", "crown": "♔", "lock": "⬟", "unlock": "⬠", "key": "⚿", "shop": "▤",
-    "cart": "▤", "gift": "✦", "wave": "◡", "bot": "◲", "pin": "◆", "tack": "◆",
-    "clock": "◷", "hourglass": "⧖", "chart": "▤", "tool": "⚒", "gear": "⚙", "trash": "✕",
-    "link": "↗", "coin": "◎", "shield": "⬡", "user": "◉", "users": "◍", "roles": "◈",
-    "chat": "❝", "note": "✎", "edit": "✎", "package": "▣", "receipt": "▤", "screen": "▭",
-    "bell": "◖", "zap": "↯", "rocket": "➤", "scroll": "▱", "clip": "⊘", "calendar": "▦",
-    "gem": "◆", "globe": "◍", "test": "⚗", "ban": "⊘", "game": "◰", "announce": "◁",
-    "money": "◎", "plus": "+", "minus": "−", "image": "▧", "film": "▶", "mail": "✉",
-    "book": "▤", "file": "▭", "folder": "▭", "home": "⌂", "idea": "◌", "refresh": "⟳",
-    "sound": "◂", "mute": "◁", "trophy": "▲", "search": "⌕", "fire": "▲", "flag": "⚑",
-    "clean": "✕", "door": "▯", "clipboard": "▦", "id": "▭", "hashtag": "#", "scale": "⚖",
+    "check": "✓", "cross": "✗", "warn": "▲", "info": "◉", "alert": "◆", "star": "★",
+    "ticket": "▭", "crown": "◆", "lock": "■", "unlock": "□", "key": "◈", "shop": "▦",
+    "cart": "▥", "gift": "✦", "wave": "◡", "bot": "◙", "pin": "◆", "tack": "◇",
+    "clock": "○", "hourglass": "▽", "chart": "▦", "tool": "◈", "gear": "◉", "trash": "✗",
+    "link": "◇", "coin": "◎", "shield": "◈", "user": "◉", "users": "◎", "roles": "◈",
+    "chat": "◗", "note": "▤", "edit": "▤", "package": "▣", "receipt": "▤", "screen": "▭",
+    "bell": "◐", "zap": "▲", "rocket": "➤", "scroll": "▱", "clip": "◇", "calendar": "▦",
+    "gem": "◆", "globe": "◎", "test": "◇", "ban": "○", "game": "◙", "announce": "▶",
+    "money": "◎", "plus": "+", "minus": "-", "image": "▧", "film": "▶", "mail": "▭",
+    "book": "▥", "file": "▭", "folder": "▭", "home": "◆", "idea": "○", "refresh": "○",
+    "sound": "◀", "mute": "◁", "trophy": "▲", "search": "○", "fire": "▲", "flag": "▸",
+    "clean": "✗", "door": "▯", "clipboard": "▦", "id": "▭", "hashtag": "#", "scale": "◆",
     "seed": "○", "save": "▤", "bug": "◈", "inbox": "▽", "outbox": "△",
 }
 
