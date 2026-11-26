@@ -1,5 +1,5 @@
 """One look for every message: Components V2 containers with accent colors, tidy key/value blocks, star helpers."""
-from typing import Iterable, Optional
+from typing import Optional
 
 import discord
 

@@ -12,7 +12,7 @@ from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
 
 import ui
-from common import SUCCESS, UserError
+from common import SUCCESS, UserError, E
 from fileutil import check_public_url
 
 log = logging.getLogger("verification-bot")
@@ -177,8 +177,8 @@ class ResultView(discord.ui.View):
             return await interaction.response.send_message("This is someone else's GIF.", ephemeral=True)
         await interaction.response.defer(ephemeral=True)
         data = await asyncio.to_thread(make_gif, self.settings.image, self.settings.effect, self.settings.speed, self.settings.size, self.settings.caption)
-        await interaction.channel.send(content=f"🎞️ GIF by {interaction.user.mention}", file=discord.File(io.BytesIO(data), filename="creation.gif"), allowed_mentions=discord.AllowedMentions.none())
-        await interaction.followup.send(view=ui.card("✅ Posted", "Your GIF is in the channel.", color=SUCCESS), ephemeral=True)
+        await interaction.channel.send(content=f"{E.film} GIF by {interaction.user.mention}", file=discord.File(io.BytesIO(data), filename="creation.gif"), allowed_mentions=discord.AllowedMentions.none())
+        await interaction.followup.send(view=ui.card(f"{E.check} Posted", "Your GIF is in the channel.", color=SUCCESS), ephemeral=True)
 
 
 class GifCreator(commands.Cog):
@@ -206,7 +206,7 @@ class GifCreator(commands.Cog):
     async def render(self, interaction: discord.Interaction, settings: Settings, edit: bool = False) -> None:
         data = await asyncio.to_thread(make_gif, settings.image, settings.effect, settings.speed, settings.size, settings.caption)
         embed = ui.card(
-            "🎞️ Your GIF", ui.kv(("✨ Effect", EFFECTS[settings.effect]), ("⚡ Speed", f"{settings.speed}/10"), ("📐 Size", f"{settings.size}px"), ("💬 Caption", settings.caption)) + "\n\nChange the effect below, edit the settings, or post it.",
+            f"{E.film} Your GIF", ui.kv(("✨ Effect", EFFECTS[settings.effect]), (f"{E.zap} Speed", f"{settings.speed}/10"), ("📐 Size", f"{settings.size}px"), (f"{E.chat} Caption", settings.caption)) + "\n\nChange the effect below, edit the settings, or post it.",
             image="attachment://creation.gif", section="GIF creator",
         )
         kwargs = {"embed": embed, "attachments": [discord.File(io.BytesIO(data), filename="creation.gif")], "view": ResultView(self, settings, interaction.user.id)}

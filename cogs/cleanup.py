@@ -10,7 +10,7 @@ from discord.ext import commands
 import db
 import ui
 from cogs.files import delete_disk_file
-from common import SUCCESS, WARN, UserError
+from common import SUCCESS, WARN, UserError, E
 from logutil import emit
 
 log = logging.getLogger("verification-bot")
@@ -88,8 +88,8 @@ class ConfirmCleanup(discord.ui.View):
         self.stop()
         done = await apply_plan(interaction.guild_id, self.plan)
         body = "\n".join(f"• {n:,} {what}" for what, n in done.items()) or "Nothing needed removing."
-        await interaction.response.edit_message(view=ui.card("✅ Cleaned up", body, color=SUCCESS))
-        await emit(interaction.guild, "staff", "Database cleanup", ui.kv(("🛡️ By", interaction.user.mention), ("🧹 Removed", ", ".join(f"{n} {what}" for what, n in done.items()) or "nothing")), subject=interaction.user.id)
+        await interaction.response.edit_message(view=ui.card(f"{E.check} Cleaned up", body, color=SUCCESS))
+        await emit(interaction.guild, "staff", "Database cleanup", ui.kv((f"{E.shield} By", interaction.user.mention), (f"{E.clean} Removed", ", ".join(f"{n} {what}" for what, n in done.items()) or "nothing")), subject=interaction.user.id)
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -122,21 +122,21 @@ class Tools(commands.GroupCog, group_name="tools",
     async def cleanup(self, interaction: discord.Interaction, include_test_files: bool = False):
         plan = await survey(interaction.guild_id, include_test_files)
         lines = [
-            ("🧪 Test-mode orders (payments made in Stripe test mode)", len(plan["test_orders"])),
-            ("📥 File deliveries for files that no longer exist", len(plan["orphan_deliveries"])),
-            ("🖼️ Page and banner images nothing uses", len(plan["orphan_images"])),
-            (f"🎉 Giveaways finished more than {OLD_GIVEAWAY_DAYS} days ago", len(plan["old_giveaways"])),
-            ("🔗 Products pointing at a deleted file", plan["dead_product_links"]),
-            ("🗑️ The old /pyrex and /spotless link-card data", 1 if plan["old_link_cards"] else 0),
+            (f"{E.test} Test-mode orders (payments made in Stripe test mode)", len(plan["test_orders"])),
+            (f"{E.inbox} File deliveries for files that no longer exist", len(plan["orphan_deliveries"])),
+            (f"{E.image} Page and banner images nothing uses", len(plan["orphan_images"])),
+            (f"{E.gift} Giveaways finished more than {OLD_GIVEAWAY_DAYS} days ago", len(plan["old_giveaways"])),
+            (f"{E.link} Products pointing at a deleted file", plan["dead_product_links"]),
+            (f"{E.trash} The old /pyrex and /spotless link-card data", 1 if plan["old_link_cards"] else 0),
         ]
         body = "\n".join(f"{'**' + str(n) + '**' if n else '0'} · {what}" for what, n in lines)
         if plan["test_files"]:
             names = ", ".join(f"`{n}`" for _, n in plan["test_files"][:8])
-            body += f"\n\n📦 **Files that look like tests:** {names}" + ("\n(They'll be deleted too, because you set `include_test_files`.)" if include_test_files else "\nRun again with `include_test_files:True` to remove them.")
+            body += f"\n\n{E.package} **Files that look like tests:** {names}" + ("\n(They'll be deleted too, because you set `include_test_files`.)" if include_test_files else "\nRun again with `include_test_files:True` to remove them.")
         total = plan_total(plan)
-        body += "\n\n" + ("Real purchases, real files, customers' records and settings are **never** touched." if total else "✅ Nothing to clean up. Your data is tidy.")
+        body += "\n\n" + ("Real purchases, real files, customers' records and settings are **never** touched." if total else f"{E.check} Nothing to clean up. Your data is tidy.")
         await interaction.response.send_message(
-            view=ui.card("🧹 Cleanup preview", body, color=WARN, guild=interaction.guild, section="Staff").with_view(ConfirmCleanup(interaction.user.id, plan)) if total else ui.card("🧹 Cleanup preview", body, color=WARN, guild=interaction.guild, section="Staff"), ephemeral=True,
+            view=ui.card(f"{E.clean} Cleanup preview", body, color=WARN, guild=interaction.guild, section="Staff").with_view(ConfirmCleanup(interaction.user.id, plan)) if total else ui.card(f"{E.clean} Cleanup preview", body, color=WARN, guild=interaction.guild, section="Staff"), ephemeral=True,
         )
 
 
@@ -173,15 +173,15 @@ class Tools(commands.GroupCog, group_name="tools",
         except discord.HTTPException:
             pass
         whose = "your" if target.id == interaction.user.id else f"{target.mention}'s"
-        body = f"🗑️ Deleted **{deleted}** of my messages from {whose} DMs."
+        body = f"{E.trash} Deleted **{deleted}** of my messages from {whose} DMs."
         if kept:
-            body += f"\n🧾 Kept **{kept}** receipt/key message{'s' if kept != 1 else ''}. Run again with `keep_receipts:False` to remove them too."
+            body += f"\n{E.receipt} Kept **{kept}** receipt/key message{'s' if kept != 1 else ''}. Run again with `keep_receipts:False` to remove them too."
         body += "\n\nOnly my messages can be deleted. Anything you sent stays, and Discord may take a moment to update."
         if target.id != interaction.user.id:
-            await emit(interaction.guild, "staff", "🧹 Bot DMs cleared",
-                       ui.kv(("👤 Member", f"{target.mention} · `{target.id}`"), ("🛡️ By", interaction.user.mention), ("🗑️ Deleted", str(deleted)),
-                             ("🧾 Kept receipts", "yes" if keep_receipts else "no")), subject=target.id)
-        await interaction.followup.send(view=ui.card("🧹 DMs cleared", body, color=SUCCESS, guild=interaction.guild), ephemeral=True)
+            await emit(interaction.guild, "staff", f"{E.clean} Bot DMs cleared",
+                       ui.kv((f"{E.user} Member", f"{target.mention} · `{target.id}`"), (f"{E.shield} By", interaction.user.mention), (f"{E.trash} Deleted", str(deleted)),
+                             (f"{E.receipt} Kept receipts", "yes" if keep_receipts else "no")), subject=target.id)
+        await interaction.followup.send(view=ui.card(f"{E.clean} DMs cleared", body, color=SUCCESS, guild=interaction.guild), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

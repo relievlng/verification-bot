@@ -11,7 +11,7 @@ from discord.ext import commands
 
 import db
 import ui
-from common import SUCCESS, WARN, UserError
+from common import SUCCESS, WARN, UserError, E
 from logutil import emit
 
 log = logging.getLogger("verification-bot")
@@ -209,9 +209,9 @@ class Automod(commands.GroupCog, group_name="automod", group_description="Automa
         if s["dm_user"]:
             try:
                 await member.send(view=ui.card(
-                    "⚠️ Your message was removed",
-                    ui.kv(("🏠 Server", guild.name), ("📏 Rule", RULES[rule]), ("📍 Channel", f"#{message.channel.name}"), ("⚖️ Action", action_taken),
-                          ("⚡ Strikes", strike_meter(count, limit, s["action"] == "timeout", s["timeout_minutes"], s["strike_hours"])))
+                    f"{E.warn} Your message was removed",
+                    ui.kv((f"{E.home} Server", guild.name), ("📏 Rule", RULES[rule]), (f"{E.pin} Channel", f"#{message.channel.name}"), (f"{E.scale} Action", action_taken),
+                          (f"{E.zap} Strikes", strike_meter(count, limit, s["action"] == "timeout", s["timeout_minutes"], s["strike_hours"])))
                     + "\n\nPlease read the server rules. Strikes fall off on their own after " + f"{s['strike_hours']} hours.",
                     color=WARN, guild=guild, section="Automod"))
             except discord.HTTPException:
@@ -219,8 +219,8 @@ class Automod(commands.GroupCog, group_name="automod", group_description="Automa
         snippet = (message.content or "")[:900]
         await emit(
             guild, "automod", f"Automod: {RULES[rule]}",
-            ui.kv(("👤 User", member.mention), ("📏 Rule", RULES[rule]), ("🔎 Detail", detail), ("📍 Channel", message.channel.mention), ("⚖️ Action", action_taken),
-                  ("🆔 IDs", f"user `{member.id}` · message `{message.id}`"), ("⚡ Strikes", f"{count} in the last {s['strike_hours']}h")),
+            ui.kv((f"{E.user} User", member.mention), ("📏 Rule", RULES[rule]), (f"{E.search} Detail", detail), (f"{E.pin} Channel", message.channel.mention), (f"{E.scale} Action", action_taken),
+                  (f"{E.id} IDs", f"user `{member.id}` · message `{message.id}`"), (f"{E.zap} Strikes", f"{count} in the last {s['strike_hours']}h")),
             fields=(("Message", snippet),) if snippet else (), author=(member.display_name, member.display_avatar.url), subject=member.id,
         )
 
@@ -230,29 +230,29 @@ class Automod(commands.GroupCog, group_name="automod", group_description="Automa
     @app_commands.checks.has_permissions(manage_guild=True)
     async def status(self, interaction: discord.Interaction):
         s = await self.settings(interaction.guild_id)
-        on = lambda v: "✅ On" if v else "❌ Off"
-        limit = lambda v, unit="": f"{v}{unit}" if v else "❌ Off"
-        links = {"off": "❌ Off", "block": "🚫 All links blocked", "allowlist": "🚫 Blocked except allowed sites"}[s["links_mode"]]
+        on = lambda v: f"{E.check} On" if v else f"{E.cross} Off"
+        limit = lambda v, unit="": f"{v}{unit}" if v else f"{E.cross} Off"
+        links = {"off": f"{E.cross} Off", "block": f"{E.ban} All links blocked", "allowlist": f"{E.ban} Blocked except allowed sites"}[s["links_mode"]]
         body = ui.kv(
-            ("🤖 Automod", on(s["enabled"])), ("🔗 Links", links), ("✉️ Discord invites", on(s["block_invites"])),
-            ("🌐 Allowed sites", ", ".join(f"`{d}`" for d in split_list(s["allowed_domains"])) or None),
-            ("💥 Spam", f"{s['spam_count']} messages in {s['spam_seconds']}s" if s["spam_count"] else "❌ Off"), ("🔁 Repeats", limit(s["repeat_limit"], " in a row")),
-            ("📣 Mentions", limit(s["mention_limit"], " per message")), ("🔠 Capitals", limit(s["caps_percent"], "%")), ("😀 Emojis", limit(s["emoji_limit"], " per message")),
-            ("📜 Lines", limit(s["max_lines"], " per message")), ("🚷 Blocked words", f"{len(split_list(s['blocked_words']))} words"),
-            ("🛡️ Skips", f"staff, {len(split_list(s['exempt_roles']))} roles, {len(split_list(s['exempt_channels']))} channels"),
-            ("📩 DM the member", on(s["dm_user"])), ("⚡ Strikes expire after", f"{s['strike_hours']} hours"),
-            ("⚖️ Punishment", {"delete": "Remove the message", "warn": "Remove + warn", "timeout": f"Remove + warn + timeout {s['timeout_minutes']} min after {s['strikes_before_timeout']} strikes"}[s["action"]]),
+            (f"{E.bot} Automod", on(s["enabled"])), (f"{E.link} Links", links), (f"{E.mail} Discord invites", on(s["block_invites"])),
+            (f"{E.globe} Allowed sites", ", ".join(f"`{d}`" for d in split_list(s["allowed_domains"])) or None),
+            ("💥 Spam", f"{s['spam_count']} messages in {s['spam_seconds']}s" if s["spam_count"] else f"{E.cross} Off"), (f"{E.refresh} Repeats", limit(s["repeat_limit"], " in a row")),
+            (f"{E.announce} Mentions", limit(s["mention_limit"], " per message")), ("🔠 Capitals", limit(s["caps_percent"], "%")), ("😀 Emojis", limit(s["emoji_limit"], " per message")),
+            (f"{E.scroll} Lines", limit(s["max_lines"], " per message")), (f"{E.ban} Blocked words", f"{len(split_list(s['blocked_words']))} words"),
+            (f"{E.shield} Skips", f"staff, {len(split_list(s['exempt_roles']))} roles, {len(split_list(s['exempt_channels']))} channels"),
+            (f"{E.mail} DM the member", on(s["dm_user"])), (f"{E.zap} Strikes expire after", f"{s['strike_hours']} hours"),
+            (f"{E.scale} Punishment", {"delete": "Remove the message", "warn": "Remove + warn", "timeout": f"Remove + warn + timeout {s['timeout_minutes']} min after {s['strikes_before_timeout']} strikes"}[s["action"]]),
         )
         if not self.bot.intents.message_content:
-            body += "\n\n⚠️ **Message Content Intent is off**, so link, word and capitals checks can't read messages. Turn it on in the Developer Portal and set `MESSAGE_CONTENT=true`."
-        await interaction.response.send_message(view=ui.card("🤖 Automod", body, guild=interaction.guild, section="Automod"), ephemeral=True)
+            body += f"\n\n{E.warn} **Message Content Intent is off**, so link, word and capitals checks can't read messages. Turn it on in the Developer Portal and set `MESSAGE_CONTENT=true`."
+        await interaction.response.send_message(view=ui.card(f"{E.bot} Automod", body, guild=interaction.guild, section="Automod"), ephemeral=True)
 
     @app_commands.command(description="Switch automod on or off")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def toggle(self, interaction: discord.Interaction, enabled: bool):
         await self.change(interaction.guild_id, enabled=int(enabled))
-        await interaction.response.send_message(view=ui.card(f"🤖 Automod is {'on' if enabled else 'off'}", "Staff (anyone who can manage messages) are never touched." if enabled else "Nothing will be removed automatically.", color=SUCCESS if enabled else WARN), ephemeral=True)
-        await emit(interaction.guild, "staff", f"Automod {'enabled' if enabled else 'disabled'}", ui.kv(("🛡️ By", interaction.user.mention)), subject=interaction.user.id)
+        await interaction.response.send_message(view=ui.card(f"{E.bot} Automod is {'on' if enabled else 'off'}", "Staff (anyone who can manage messages) are never touched." if enabled else "Nothing will be removed automatically.", color=SUCCESS if enabled else WARN), ephemeral=True)
+        await emit(interaction.guild, "staff", f"Automod {'enabled' if enabled else 'disabled'}", ui.kv((f"{E.shield} By", interaction.user.mention)), subject=interaction.user.id)
 
     @app_commands.command(description="Set a number-based rule (0 turns it off)")
     @app_commands.describe(rule="Which rule", value="The limit. 0 turns the rule off")
@@ -274,7 +274,7 @@ class Automod(commands.GroupCog, group_name="automod", group_description="Automa
         if rule.value in ("spam_count", "repeat_limit") and value == 1:
             raise UserError("Use 2 or more, or 0 to turn it off.")
         await self.change(interaction.guild_id, **{rule.value: value})
-        await interaction.response.send_message(view=ui.card("✅ Saved", f"**{rule.name.split(':')[0]}** is now **{value if value else 'off'}**." + ("\n\nSwitch automod on with `/automod toggle`." if not (await self.settings(interaction.guild_id))["enabled"] else ""), color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.check} Saved", f"**{rule.name.split(':')[0]}** is now **{value if value else 'off'}**." + ("\n\nSwitch automod on with `/automod toggle`." if not (await self.settings(interaction.guild_id))["enabled"] else ""), color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="Block links and Discord invites (with sites you allow)")
     @app_commands.describe(mode="Off, block every link, or block all except the allowed sites", block_invites="Remove Discord server invites", allowed_sites="Sites that are fine, comma separated (e.g. youtube.com, discord.gg/xzxx)")
@@ -291,7 +291,7 @@ class Automod(commands.GroupCog, group_name="automod", group_description="Automa
         if not changes:
             raise UserError("Nothing to change. Set a mode, block_invites or allowed_sites.")
         await self.change(interaction.guild_id, **changes)
-        await interaction.response.send_message(view=ui.card("✅ Link rules saved", "Run `/automod status` to see everything.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.check} Link rules saved", "Run `/automod status` to see everything.", color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="Manage the blocked word list")
     @app_commands.describe(action="Add, remove or list", word="The word or phrase")
@@ -301,7 +301,7 @@ class Automod(commands.GroupCog, group_name="automod", group_description="Automa
         s = await self.settings(interaction.guild_id)
         current = split_list(s["blocked_words"])
         if action.value == "list":
-            return await interaction.response.send_message(view=ui.card("🚷 Blocked words", ("\n".join(f"• {w}" for w in current) or "None yet.") + "\n\n*Hidden from everyone but you.*"), ephemeral=True)
+            return await interaction.response.send_message(view=ui.card(f"{E.ban} Blocked words", ("\n".join(f"• {w}" for w in current) or "None yet.") + "\n\n*Hidden from everyone but you.*"), ephemeral=True)
         if not word:
             raise UserError("Type the word to add or remove.")
         word = word.strip().lower()
@@ -314,7 +314,7 @@ class Automod(commands.GroupCog, group_name="automod", group_description="Automa
                 raise UserError("That word isn't on the list.")
             current.remove(word)
         await self.change(interaction.guild_id, blocked_words=",".join(current) or None)
-        await interaction.response.send_message(view=ui.card("✅ Saved", f"The list has **{len(current)}** words.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.check} Saved", f"The list has **{len(current)}** words.", color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="Choose who or where automod ignores (staff are always ignored)")
     @app_commands.describe(role="A role to ignore", channel="A channel to ignore", remove="Stop ignoring it instead")
@@ -334,14 +334,14 @@ class Automod(commands.GroupCog, group_name="automod", group_description="Automa
                 current.append(tid)
             changes[column] = ",".join(current) or None
         await self.change(interaction.guild_id, **changes)
-        await interaction.response.send_message(view=ui.card("✅ Saved", "Automod will " + ("no longer ignore" if remove else "ignore") + f" {', '.join(t.mention for t in (role, channel) if t)}.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.check} Saved", "Automod will " + ("no longer ignore" if remove else "ignore") + f" {', '.join(t.mention for t in (role, channel) if t)}.", color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="DM members when automod removes their message")
     @app_commands.describe(enabled="True to send a private DM explaining which rule they broke")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def dm(self, interaction: discord.Interaction, enabled: bool):
         await self.change(interaction.guild_id, dm_user=int(enabled))
-        await interaction.response.send_message(view=ui.card(f"📩 DM notices {'on' if enabled else 'off'}", "Members get a private DM naming the rule they broke." if enabled else "Members only see the short in-channel notice.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.mail} DM notices {'on' if enabled else 'off'}", "Members get a private DM naming the rule they broke." if enabled else "Members only see the short in-channel notice.", color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="See a member's automod strikes, or wipe them")
     @app_commands.describe(member="Who", clear="True to wipe their strikes")
@@ -350,15 +350,15 @@ class Automod(commands.GroupCog, group_name="automod", group_description="Automa
         s = await self.settings(interaction.guild_id)
         if clear:
             await self.clear_strikes(interaction.guild_id, member.id)
-            await emit(interaction.guild, "automod", "Automod strikes cleared", ui.kv(("👤 Member", f"{member.mention} (`{member.id}`)"), ("🛡️ Staff", interaction.user.mention)), subject=member.id)
-            return await interaction.response.send_message(view=ui.card("✅ Strikes cleared", f"{member.mention} is back to 0.", color=SUCCESS), ephemeral=True)
+            await emit(interaction.guild, "automod", "Automod strikes cleared", ui.kv((f"{E.user} Member", f"{member.mention} (`{member.id}`)"), (f"{E.shield} Staff", interaction.user.mention)), subject=member.id)
+            return await interaction.response.send_message(view=ui.card(f"{E.check} Strikes cleared", f"{member.mention} is back to 0.", color=SUCCESS), ephemeral=True)
         rows = await db.fetch_all(
             "SELECT rule, created_at FROM automod_strikes WHERE guild_id = ? AND user_id = ? AND cleared = 0 AND created_at > ? ORDER BY created_at DESC LIMIT 15",
             (interaction.guild_id, member.id, time.time() - s["strike_hours"] * 3600),
         )
         lines = "\n".join(f"• {RULES.get(r['rule'], r['rule'])} · <t:{int(r['created_at'])}:R>" for r in rows) or "No active strikes."
         meter = strike_meter(len(rows), s["strikes_before_timeout"], s["action"] == "timeout", s["timeout_minutes"], s["strike_hours"])
-        await interaction.response.send_message(view=ui.card(f"⚡ Strikes · {member.display_name}", f"{meter}\n\n{lines}", guild=interaction.guild, section="Automod"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.zap} Strikes · {member.display_name}", f"{meter}\n\n{lines}", guild=interaction.guild, section="Automod"), ephemeral=True)
 
     @app_commands.command(description="Choose what happens when someone breaks a rule")
     @app_commands.describe(action="What automod does", strikes="Strikes in 10 minutes before a timeout", minutes="How long the timeout lasts", hours="How many hours a strike counts before it expires")
@@ -373,7 +373,7 @@ class Automod(commands.GroupCog, group_name="automod", group_description="Automa
         if hours:
             changes["strike_hours"] = hours
         await self.change(interaction.guild_id, **changes)
-        await interaction.response.send_message(view=ui.card("✅ Saved", f"**{action.name}**.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.check} Saved", f"**{action.name}**.", color=SUCCESS), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

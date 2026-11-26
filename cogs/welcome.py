@@ -11,13 +11,13 @@ from discord.ext import commands
 import db
 import ui
 from cogs.pages import check_attachment, drop_image, store_image
-from common import ACCENT, CARD_ACCENT_HEX, COLOR, DANGER, INFO, SUCCESS, UserError, WARN, check_can_send, check_role, compact, ordinal, parse_color, render
+from common import ACCENT, CARD_ACCENT_HEX, COLOR, DANGER, INFO, SUCCESS, UserError, WARN, check_can_send, check_role, compact, ordinal, parse_color, render, E
 from welcomecard import render_card
 
 log = logging.getLogger("verification-bot")
 
-DEFAULT_JOIN = "Welcome to **{server}**, {user}! We're glad you're here. 🎉"
-DEFAULT_LEAVE = "**{user}** has left the server. 👋"
+DEFAULT_JOIN = f"Welcome to **{{server}}**, {{user}}! We're glad you're here. {E.gift}"
+DEFAULT_LEAVE = f"**{{user}}** has left the server. {E.wave}"
 PLACEHOLDERS = "Placeholders: `{user}` `{username}` `{server}` `{count}` `{ordinal}`"
 STYLES = {"card": "Image card (banner with avatar)", "embed": "Embed", "text": "Plain text"}
 BANNERS = {
@@ -81,7 +81,7 @@ class MessageModal(discord.ui.Modal):
         await db.upsert_welcome(
             interaction.guild_id, message=self.message_input.value.strip(), embed_title=self.title_input.value.strip() or None
         )
-        await interaction.response.send_message(view=ui.card("✅ Welcome message saved", "Use `/welcome test` to preview it.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.check} Welcome message saved", "Use `/welcome test` to preview it.", color=SUCCESS), ephemeral=True)
 
 
 @app_commands.guild_only()
@@ -140,15 +140,15 @@ class Welcome(commands.GroupCog, group_name="welcome", group_description="Welcom
             render(w["embed_title"] or "Welcome!", member)[:256], text, color=embed_color(w),
             guild=guild, footer=guild.name, author=(f"{member.display_name} joined the server", member.display_avatar.url),
         )
-        embed.add_field(name="👥 Member", value=f"**{ordinal(guild.member_count or 0)}**", inline=True)
-        embed.add_field(name="📅 Account created", value=discord.utils.format_dt(member.created_at, "R"), inline=True)
+        embed.add_field(name=f"{E.users} Member", value=f"**{ordinal(guild.member_count or 0)}**", inline=True)
+        embed.add_field(name=f"{E.calendar} Account created", value=discord.utils.format_dt(member.created_at, "R"), inline=True)
         start_here = []
         if w["rules_channel_id"]:
-            start_here.append(f"📜 Read the rules in <#{w['rules_channel_id']}>")
+            start_here.append(f"{E.scroll} Read the rules in <#{w['rules_channel_id']}>")
         if w["extra_channel_id"]:
-            start_here.append(f"🚀 {w['extra_label'] or 'Start here'}: <#{w['extra_channel_id']}>")
+            start_here.append(f"{E.rocket} {w['extra_label'] or 'Start here'}: <#{w['extra_channel_id']}>")
         if start_here:
-            embed.add_field(name="📍 Get started", value="\n".join(start_here), inline=False)
+            embed.add_field(name=f"{E.pin} Get started", value="\n".join(start_here), inline=False)
 
         file, image_ref = await self.banner_for(member, w, style)
         if image_ref:
@@ -298,9 +298,9 @@ class Welcome(commands.GroupCog, group_name="welcome", group_description="Welcom
         w = await db.get_welcome(interaction.guild_id)
         notes = []
         if w["enabled"] and not w["channel_id"]:
-            notes.append("⚠️ Pick a channel too, or nothing will be sent.")
+            notes.append(f"{E.warn} Pick a channel too, or nothing will be sent.")
         notes.append("**Next:** `/welcome message` to write it · `/welcome banner` for the picture · `/welcome style` for the look · `/welcome test` to preview.")
-        await interaction.response.send_message(view=ui.card("✅ Welcome settings saved", "\n".join(notes), color=SUCCESS, guild=interaction.guild, section="Welcome"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.check} Welcome settings saved", "\n".join(notes), color=SUCCESS, guild=interaction.guild, section="Welcome"), ephemeral=True)
 
     @app_commands.command(description="Write the welcome message in a pop-up (multi-line supported)")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -312,7 +312,7 @@ class Welcome(commands.GroupCog, group_name="welcome", group_description="Welcom
         look="Image card, embed or plain text",
         background_url="Custom background image for the card (direct https link, or 'none')",
         image_url="Banner image for the embed look (direct https link, or 'none')",
-        rules_channel="Adds a 📜 Rules button linking to this channel",
+        rules_channel=f"Adds a {E.scroll} Rules button linking to this channel",
         extra_channel="Adds a second button linking to this channel (e.g. #roles)",
         extra_label="Text for that second button (default: Start here)",
     )
@@ -351,7 +351,7 @@ class Welcome(commands.GroupCog, group_name="welcome", group_description="Welcom
         if not updates:
             raise UserError("Nothing to change. Fill in at least one option.")
         await db.upsert_welcome(interaction.guild_id, **updates)
-        await interaction.response.send_message(view=ui.card("✅ Style saved", "Use `/welcome test` to see it.", color=SUCCESS, guild=interaction.guild, section="Welcome"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.check} Style saved", "Use `/welcome test` to see it.", color=SUCCESS, guild=interaction.guild, section="Welcome"), ephemeral=True)
 
     @app_commands.command(description="Choose the welcome picture: card, your server banner, or your own image")
     @app_commands.describe(
@@ -385,9 +385,9 @@ class Welcome(commands.GroupCog, group_name="welcome", group_description="Welcom
                 updates.update(banner_file_id=None, banner_url=image_url)
         warn = ""
         if chosen in ("server_banner", "card_banner") and not getattr(guild, "banner", None):
-            warn = "\n\n⚠️ Your server has **no banner** yet (it needs Server Boost Level 2), so the image card is used until you add one."
+            warn = f"\n\n{E.warn} Your server has **no banner** yet (it needs Server Boost Level 2), so the image card is used until you add one."
         await db.upsert_welcome(guild.id, **updates)
-        await interaction.response.send_message(view=ui.card("✅ Welcome picture saved", f"**{BANNERS[chosen]}**.{warn}\n\nUse `/welcome test` to preview it.", color=SUCCESS, guild=guild, section="Welcome"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.check} Welcome picture saved", f"**{BANNERS[chosen]}**.{warn}\n\nUse `/welcome test` to preview it.", color=SUCCESS, guild=guild, section="Welcome"), ephemeral=True)
 
     @app_commands.command(description="Set up the goodbye message when someone leaves")
     @app_commands.describe(channel="Where goodbye messages go (turns it on)", message="Text. Placeholders as above", enabled="Turn it on or off")
@@ -413,8 +413,8 @@ class Welcome(commands.GroupCog, group_name="welcome", group_description="Welcom
             raise UserError("Nothing to change. Fill in at least one option.")
         await db.upsert_welcome(interaction.guild_id, **updates)
         w = await db.get_welcome(interaction.guild_id)
-        extra = "\n⚠️ Pick a channel too, or nothing will be sent." if w["leave_enabled"] and not w["leave_channel_id"] else ""
-        await interaction.response.send_message(view=ui.card("✅ Goodbye settings saved", f"{extra.strip()}\n{PLACEHOLDERS}".strip(), color=SUCCESS, guild=interaction.guild, section="Welcome"), ephemeral=True)
+        extra = f"\n{E.warn} Pick a channel too, or nothing will be sent." if w["leave_enabled"] and not w["leave_channel_id"] else ""
+        await interaction.response.send_message(view=ui.card(f"{E.check} Goodbye settings saved", f"{extra.strip()}\n{PLACEHOLDERS}".strip(), color=SUCCESS, guild=interaction.guild, section="Welcome"), ephemeral=True)
 
     @app_commands.command(description="Send new members a private welcome DM")
     @app_commands.describe(enabled="Turn the DM on or off", message="DM text. Placeholders as above")
@@ -425,8 +425,8 @@ class Welcome(commands.GroupCog, group_name="welcome", group_description="Welcom
             updates["dm_message"] = message
         await db.upsert_welcome(interaction.guild_id, **updates)
         w = await db.get_welcome(interaction.guild_id)
-        extra = "\n⚠️ Add a `message` too, or nothing will be sent." if w["dm_enabled"] and not w["dm_message"] else ""
-        await interaction.response.send_message(view=ui.card(f"✅ Welcome DM {'on' if enabled else 'off'}", f"{extra.strip()}\n{PLACEHOLDERS}".strip(), color=SUCCESS, guild=interaction.guild, section="Welcome"), ephemeral=True)
+        extra = f"\n{E.warn} Add a `message` too, or nothing will be sent." if w["dm_enabled"] and not w["dm_message"] else ""
+        await interaction.response.send_message(view=ui.card(f"{E.check} Welcome DM {'on' if enabled else 'off'}", f"{extra.strip()}\n{PLACEHOLDERS}".strip(), color=SUCCESS, guild=interaction.guild, section="Welcome"), ephemeral=True)
 
     @app_commands.command(description="Give roles automatically when someone joins")
     @app_commands.describe(members="Role for new human members", bots="Role for new bots", clear="Remove both auto-roles")
@@ -440,7 +440,7 @@ class Welcome(commands.GroupCog, group_name="welcome", group_description="Welcom
     ):
         if clear:
             await db.upsert_welcome(interaction.guild_id, autorole_id=None, botrole_id=None)
-            return await interaction.response.send_message(view=ui.card("🧹 Auto-roles cleared", "New members won't get a role automatically.", color=SUCCESS, section="Welcome"), ephemeral=True)
+            return await interaction.response.send_message(view=ui.card(f"{E.clean} Auto-roles cleared", "New members won't get a role automatically.", color=SUCCESS, section="Welcome"), ephemeral=True)
         updates: dict = {}
         if members:
             check_role(interaction, members)
@@ -451,7 +451,7 @@ class Welcome(commands.GroupCog, group_name="welcome", group_description="Welcom
         if not updates:
             raise UserError("Pick a role for `members` and/or `bots`.")
         await db.upsert_welcome(interaction.guild_id, **updates)
-        await interaction.response.send_message(view=ui.card("✅ Auto-roles saved", "New members and bots get their roles when they join.", color=SUCCESS, section="Welcome"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.check} Auto-roles saved", "New members and bots get their roles when they join.", color=SUCCESS, section="Welcome"), ephemeral=True)
 
     @app_commands.command(description="Preview your welcome, goodbye and DM (only you see it)")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -461,12 +461,12 @@ class Welcome(commands.GroupCog, group_name="welcome", group_description="Welcom
             raise UserError("Nothing set up yet. Start with `/welcome settings`.")
         await interaction.response.defer(ephemeral=True)
         kwargs = await self.build_welcome(interaction.user, w)
-        header = "**👋 Join message preview**"
+        header = f"**{E.wave} Join message preview**"
         kwargs["content"] = f"{header}\n{kwargs['content']}" if "content" in kwargs else header
         await interaction.followup.send(ephemeral=True, **kwargs)
-        await interaction.followup.send("**🚪 Goodbye preview**", view=self.build_leave(interaction.user, w), ephemeral=True)
+        await interaction.followup.send(f"**{E.door} Goodbye preview**", view=self.build_leave(interaction.user, w), ephemeral=True)
         if w["dm_message"]:
-            await interaction.followup.send("**✉️ Welcome DM preview**", ephemeral=True, **self.build_dm(interaction.user, w))
+            await interaction.followup.send(f"**{E.mail} Welcome DM preview**", ephemeral=True, **self.build_dm(interaction.user, w))
 
     @app_commands.command(description="Show the current welcome settings")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -485,17 +485,17 @@ class Welcome(commands.GroupCog, group_name="welcome", group_description="Welcom
 
         buttons = []
         if w["rules_channel_id"]:
-            buttons.append(f"📜 Rules → {chan(w['rules_channel_id'])}")
+            buttons.append(f"{E.scroll} Rules → {chan(w['rules_channel_id'])}")
         if w["extra_channel_id"]:
-            buttons.append(f"🚀 {w['extra_label'] or 'Start here'} → {chan(w['extra_channel_id'])}")
+            buttons.append(f"{E.rocket} {w['extra_label'] or 'Start here'} → {chan(w['extra_channel_id'])}")
         embed = ui.card(
-            "👋 Welcome settings",
+            f"{E.wave} Welcome settings",
             ui.kv(
-                ("Join message", f"{'✅ On' if w['enabled'] else '❌ Off'} in {chan(w['channel_id'])}"),
+                ("Join message", f"{f'{E.check} On' if w['enabled'] else f'{E.cross} Off'} in {chan(w['channel_id'])}"),
                 ("Sent", "After verifying" if w["send_on"] == "verified" else "As soon as they join"),
                 ("Look", STYLES[style_of(w)]), ("Picture", BANNERS[w["banner_mode"] or "card"] if style_of(w) != "text" else None),
-                ("Goodbye", f"{'✅ On' if w['leave_enabled'] else '❌ Off'} in {chan(w['leave_channel_id'])}"),
-                ("Welcome DM", "✅ On" if w["dm_enabled"] else "❌ Off"),
+                ("Goodbye", f"{f'{E.check} On' if w['leave_enabled'] else f'{E.cross} Off'} in {chan(w['leave_channel_id'])}"),
+                ("Welcome DM", f"{E.check} On" if w["dm_enabled"] else f"{E.cross} Off"),
                 ("Auto-roles", f"members {role(w['autorole_id'])} · bots {role(w['botrole_id'])}"),
                 ("Buttons", ", ".join(buttons) if buttons else "None"),
             ),

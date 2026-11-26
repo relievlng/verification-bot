@@ -19,7 +19,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from common import SUCCESS, WARN, DANGER, INFO
+from common import SUCCESS, WARN, DANGER, INFO, E
 from logutil import emit
 
 log = logging.getLogger("verification-bot")
@@ -142,7 +142,7 @@ class Launch(commands.Cog):
         # /launch only works in a DM with the bot — never in a server channel
         if interaction.guild is not None:
             await interaction.response.send_message(
-                "🔒 `/launch` only works in a **DM** with me — not in a server. "
+                f"{E.lock} `/launch` only works in a **DM** with me — not in a server. "
                 "Send me a direct message and run it there.",
                 ephemeral=True,
             )
@@ -163,8 +163,8 @@ class Launch(commands.Cog):
                 color=0xFF1744,
             )
             await interaction.followup.send(view=embed, ephemeral=True)
-            await _log_launch(self.bot, "🚫 /launch refused — no active license",
-                              f"**👤 User** · {name}", DANGER, discord_id)
+            await _log_launch(self.bot, f"{E.ban} /launch refused — no active license",
+                              f"**{E.user} User** · {name}", DANGER, discord_id)
             return
 
         # 2. Must have the tray agent installed AND actually running right now
@@ -172,7 +172,7 @@ class Launch(commands.Cog):
         if not hwid or not online:
             first_time = not hwid
             embed = discord.Embed(
-                title="🖥️ Tray agent not found" if first_time else "🖥️ Tray agent isn't running",
+                title="🖥️ Tray agent not found" if first_time else f"{E.screen} Tray agent isn't running",
                 description=(
                     "Your PC isn't connected yet.\n\n"
                     "**One-time setup:**\n"
@@ -200,9 +200,9 @@ class Launch(commands.Cog):
                 emoji="⬇️",
             ))
             await interaction.followup.send(view=embed.with_view(view), ephemeral=True)
-            await _log_launch(self.bot, "🖥️ /launch — tray agent not registered" if first_time
-                              else "🖥️ /launch — tray agent registered but offline",
-                              f"**👤 User** · {name}", WARN, discord_id)
+            await _log_launch(self.bot, f"{E.screen} /launch — tray agent not registered" if first_time
+                              else f"{E.screen} /launch — tray agent registered but offline",
+                              f"**{E.user} User** · {name}", WARN, discord_id)
             return
 
         # 3. Send launch signal
@@ -218,8 +218,8 @@ class Launch(commands.Cog):
                 color=0x00E676,
             )
             embed.set_footer(text="XZX Loader • Validated server-side every launch")
-            await _log_launch(self.bot, "🚀 /launch — signal sent",
-                              f"**👤 User** · {name}", SUCCESS, discord_id, hwid)
+            await _log_launch(self.bot, f"{E.rocket} /launch — signal sent",
+                              f"**{E.user} User** · {name}", SUCCESS, discord_id, hwid)
         else:
             embed = discord.Embed(
                 title="⚠️ Signal failed",
@@ -233,8 +233,8 @@ class Launch(commands.Cog):
                 ),
                 color=0xFF9100,
             )
-            await _log_launch(self.bot, "⚠️ /launch — signal failed to send",
-                              f"**👤 User** · {name}", WARN, discord_id, hwid)
+            await _log_launch(self.bot, f"{E.warn} /launch — signal failed to send",
+                              f"**{E.user} User** · {name}", WARN, discord_id, hwid)
 
         await interaction.followup.send(view=embed, ephemeral=True)
 
@@ -250,7 +250,7 @@ class Launch(commands.Cog):
         # the Launch button only works in a DM — never in a server channel
         if interaction.guild is not None:
             await interaction.response.send_message(
-                "🔒 This only works in a **DM** with me — not in a server.", ephemeral=True)
+                f"{E.lock} This only works in a **DM** with me — not in a server.", ephemeral=True)
             return
 
         await interaction.response.defer(ephemeral=True)
@@ -260,9 +260,9 @@ class Launch(commands.Cog):
         # must have valid license
         if not await _user_has_valid_license(discord_id):
             await interaction.followup.send(
-                "❌ No active license found. Get access in the shop.", ephemeral=True)
-            await _log_launch(self.bot, "🚫 Launch button refused — no active license",
-                              f"**👤 User** · {name}", DANGER, discord_id)
+                f"{E.cross} No active license found. Get access in the shop.", ephemeral=True)
+            await _log_launch(self.bot, f"{E.ban} Launch button refused — no active license",
+                              f"**{E.user} User** · {name}", DANGER, discord_id)
             return
 
         # look up the tray — and whether it's actually running right now
@@ -270,7 +270,7 @@ class Launch(commands.Cog):
         if not hwid or not online:
             first_time = not hwid
             embed = discord.Embed(
-                title="🖥️ Tray agent not installed" if first_time else "🖥️ Tray agent isn't running",
+                title="🖥️ Tray agent not installed" if first_time else f"{E.screen} Tray agent isn't running",
                 description=(
                     "You need to install **XZX Tray** once first.\n\n"
                     "**Setup (one time only):**\n"
@@ -294,24 +294,24 @@ class Launch(commands.Cog):
                 emoji="⬇️",
             ))
             await interaction.followup.send(view=embed.with_view(view), ephemeral=True)
-            await _log_launch(self.bot, "🖥️ Launch button — tray agent not registered" if first_time
-                              else "🖥️ Launch button — tray agent registered but offline",
-                              f"**👤 User** · {name}", WARN, discord_id)
+            await _log_launch(self.bot, f"{E.screen} Launch button — tray agent not registered" if first_time
+                              else f"{E.screen} Launch button — tray agent registered but offline",
+                              f"**{E.user} User** · {name}", WARN, discord_id)
             return
 
         # send launch signal
         ok = await _post_launch_signal(hwid, discord_id)
         if ok:
             await interaction.followup.send(
-                "🚀 Launching… check your desktop in a few seconds.", ephemeral=True)
-            await _log_launch(self.bot, "🚀 Launch button — signal sent",
-                              f"**👤 User** · {name}", SUCCESS, discord_id, hwid)
+                f"{E.rocket} Launching… check your desktop in a few seconds.", ephemeral=True)
+            await _log_launch(self.bot, f"{E.rocket} Launch button — signal sent",
+                              f"**{E.user} User** · {name}", SUCCESS, discord_id, hwid)
         else:
             await interaction.followup.send(
-                "⚠️ Couldn't reach your PC. Make sure XZX Tray is running, then try again.",
+                f"{E.warn} Couldn't reach your PC. Make sure XZX Tray is running, then try again.",
                 ephemeral=True)
-            await _log_launch(self.bot, "⚠️ Launch button — signal failed to send",
-                              f"**👤 User** · {name}", WARN, discord_id, hwid)
+            await _log_launch(self.bot, f"{E.warn} Launch button — signal failed to send",
+                              f"**{E.user} User** · {name}", WARN, discord_id, hwid)
 
 
 async def setup(bot: commands.Bot):

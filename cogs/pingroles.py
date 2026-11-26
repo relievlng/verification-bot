@@ -8,7 +8,7 @@ from discord.ext import commands
 
 import db
 import ui
-from common import SUCCESS, WARN, UserError
+from common import SUCCESS, WARN, UserError, E
 from logutil import emit
 
 log = logging.getLogger("verification-bot")
@@ -57,7 +57,7 @@ def panel_view(items: list) -> discord.ui.View:
 
 def panel_embed(guild: discord.Guild, items: list) -> discord.Embed:
     lines = [f"{r['emoji'] or '🔔'} **{r['name']}**\n　{r['description'] or ''}" for r in items]
-    return ui.card("🔔 Pick your pings", "Press a button to get pinged for that. Press it again to stop.\n\n" + "\n".join(lines), guild=guild, section="Ping roles")
+    return ui.card(f"{E.bell} Pick your pings", "Press a button to get pinged for that. Press it again to stop.\n\n" + "\n".join(lines), guild=guild, section="Ping roles")
 
 
 @app_commands.guild_only()
@@ -115,12 +115,12 @@ class PingRoles(commands.GroupCog, group_name="pingroles", group_description="Ro
         try:
             if role in member.roles:
                 await member.remove_roles(role, reason="Ping role toggled off")
-                card = ui.card("🔕 Ping removed", f"You won't be pinged for **{row['name']}** any more.", color=WARN)
+                card = ui.card(f"{E.bell} Ping removed", f"You won't be pinged for **{row['name']}** any more.", color=WARN)
             else:
                 await member.add_roles(role, reason="Ping role toggled on")
-                card = ui.card("🔔 You're on the list", f"You'll now be pinged for **{row['name']}**.", color=SUCCESS)
+                card = ui.card(f"{E.bell} You're on the list", f"You'll now be pinged for **{row['name']}**.", color=SUCCESS)
         except discord.HTTPException:
-            card = ui.card("⚠️ I couldn't change that", "My role has to be **above** the ping roles. Please tell a staff member.", color=WARN)
+            card = ui.card(f"{E.warn} I couldn't change that", "My role has to be **above** the ping roles. Please tell a staff member.", color=WARN)
         await interaction.response.send_message(view=card, ephemeral=True)
 
     # ------------------------------------------------------------ commands ----
@@ -153,8 +153,8 @@ class PingRoles(commands.GroupCog, group_name="pingroles", group_description="Ro
             await self.refresh_panel(guild)
             note = "\n\nUse `/pingroles panel` to post the sign-up panel in a channel."
         items = await rows(guild.id)
-        body = f"**{len(items)}** ping roles are ready ({made} new).\n\n" + "\n".join(f"{r['emoji']} <@&{r['role_id']}>" for r in items) + "\n\n🎉 The **Giveaways** role is now pinged automatically when a giveaway starts." + note
-        await interaction.followup.send(view=ui.card("✅ Ping roles ready", body, color=SUCCESS, guild=guild, section="Ping roles"), ephemeral=True)
+        body = f"**{len(items)}** ping roles are ready ({made} new).\n\n" + "\n".join(f"{r['emoji']} <@&{r['role_id']}>" for r in items) + f"\n\n{E.gift} The **Giveaways** role is now pinged automatically when a giveaway starts." + note
+        await interaction.followup.send(view=ui.card(f"{E.check} Ping roles ready", body, color=SUCCESS, guild=guild, section="Ping roles"), ephemeral=True)
 
     @app_commands.command(description="Post (or refresh) the sign-up panel where members pick their pings")
     @app_commands.describe(channel="Where to post the panel")
@@ -164,7 +164,7 @@ class PingRoles(commands.GroupCog, group_name="pingroles", group_description="Ro
             raise UserError("Run `/pingroles setup` first to create the roles.")
         await interaction.response.defer(ephemeral=True)
         message = await self.post_panel(interaction.guild, channel)
-        await interaction.followup.send(view=ui.card("✅ Panel posted", f"[Jump to it]({message.jump_url})", color=SUCCESS), ephemeral=True)
+        await interaction.followup.send(view=ui.card(f"{E.check} Panel posted", f"[Jump to it]({message.jump_url})", color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="Add your own ping category (like 'new-clothing')")
     @app_commands.describe(key="Short id, lowercase, e.g. clothing", name="Display name, e.g. New Clothing", emoji="An emoji for its button", description="What it's for", role="Use an existing role (otherwise one is created)")
@@ -185,7 +185,7 @@ class PingRoles(commands.GroupCog, group_name="pingroles", group_description="Ro
         position = len(await rows(guild.id))
         await db.execute("INSERT INTO ping_roles (guild_id, key, name, role_id, emoji, description, position) VALUES (?, ?, ?, ?, ?, ?, ?)", (guild.id, key, name.strip(), role.id, emoji, description, position))
         updated = await self.refresh_panel(guild)
-        await interaction.followup.send(view=ui.card("✅ Ping category added", f"**{name}** uses {role.mention}." + (" The panel was updated." if updated else ""), color=SUCCESS), ephemeral=True)
+        await interaction.followup.send(view=ui.card(f"{E.check} Ping category added", f"**{name}** uses {role.mention}." + (" The panel was updated." if updated else ""), color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="Remove a ping category")
     @app_commands.describe(key="Which one", delete_role="Also delete its role")
@@ -204,7 +204,7 @@ class PingRoles(commands.GroupCog, group_name="pingroles", group_description="Ro
                 pass
         await db.execute("DELETE FROM ping_roles WHERE guild_id = ? AND key = ?", (guild.id, row["key"]))
         await self.refresh_panel(guild)
-        await interaction.followup.send(view=ui.card("🗑️ Removed", f"**{row['name']}** was removed" + (" and its role deleted." if delete_role else "."), color=SUCCESS), ephemeral=True)
+        await interaction.followup.send(view=ui.card(f"{E.trash} Removed", f"**{row['name']}** was removed" + (" and its role deleted." if delete_role else "."), color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="See the ping roles and how many members have each")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -217,7 +217,7 @@ class PingRoles(commands.GroupCog, group_name="pingroles", group_description="Ro
             role = interaction.guild.get_role(r["role_id"]) if r["role_id"] else None
             count = len(getattr(role, "members", [])) if role else 0
             lines.append(f"{r['emoji'] or '🔔'} `{r['key']}` · {role.mention if role else '*role deleted*'} · **{count:,}** members")
-        await interaction.response.send_message(view=ui.card("🔔 Ping roles", "\n".join(lines), guild=interaction.guild, section="Ping roles"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.bell} Ping roles", "\n".join(lines), guild=interaction.guild, section="Ping roles"), ephemeral=True)
 
     @app_commands.command(description="Send an announcement that pings one of the ping roles")
     @app_commands.describe(category="Who to ping", message="The announcement text", title="A headline", channel="Where to send it (default: here)", image_url="A direct https link to a picture")
@@ -238,8 +238,8 @@ class PingRoles(commands.GroupCog, group_name="pingroles", group_description="Ro
         target = channel or interaction.channel
         card = ui.card(f"{row['emoji'] or '🔔'}  {title or row['name']}", message, guild=guild, image=image_url, footer=f"{row['name']} · {guild.name}")
         await target.send(content=role.mention, view=card, allowed_mentions=discord.AllowedMentions(roles=[role], users=False, everyone=False))
-        await interaction.response.send_message(view=ui.card("✅ Sent", f"Pinged {role.mention} in {target.mention}.", color=SUCCESS), ephemeral=True)
-        await emit(guild, "posts", "Announcement sent", ui.kv(("🔔 Pinged", role.mention), ("📍 Channel", target.mention), ("📝 Title", title or row["name"]), ("🛡️ By", interaction.user.mention)), subject=interaction.user.id)
+        await interaction.response.send_message(view=ui.card(f"{E.check} Sent", f"Pinged {role.mention} in {target.mention}.", color=SUCCESS), ephemeral=True)
+        await emit(guild, "posts", "Announcement sent", ui.kv((f"{E.bell} Pinged", role.mention), (f"{E.pin} Channel", target.mention), (f"{E.note} Title", title or row["name"]), (f"{E.shield} By", interaction.user.mention)), subject=interaction.user.id)
 
 
 async def setup(bot: commands.Bot):

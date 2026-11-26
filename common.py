@@ -1,5 +1,6 @@
 import os
 import re
+from types import SimpleNamespace
 
 import discord
 
@@ -18,29 +19,65 @@ else:
     COLOR = ACCENT = SUCCESS = WARN = DANGER = INFO = BLACK
     CARD_ACCENT_HEX = "141414"  # the welcome banner image: near-black gradient
 
-# ---------------------------------------------------------------- Custom emojis ----
-# Replace the placeholder IDs with your real custom emoji IDs.
-# Format: "<:name:ID>" for static, "<a:name:ID>" for animated.
-E_CHECK  = "<:xzx_check:1234567890000001>"   # green checkmark
-E_CROSS  = "<:xzx_cross:1234567890000002>"   # red X
-E_WARN   = "<:xzx_warn:1234567890000003>"    # yellow warning
-E_INFO   = "<:xzx_info:1234567890000004>"    # blue info
-E_STAR   = "<:xzx_star:1234567890000005>"    # star / rating
-E_TICKET = "<:xzx_ticket:1234567890000006>"  # ticket / support
-E_CROWN  = "<:xzx_crown:1234567890000007>"   # crown / premium
-E_LOCK   = "<:xzx_lock:1234567890000008>"    # lock / security
-E_KEY    = "<:xzx_key:1234567890000009>"     # key / license
-E_SHOP   = "<:xzx_shop:1234567890000010>"    # shop / purchase
-E_GIFT   = "<:xzx_gift:1234567890000011>"    # gift / giveaway
-E_WAVE   = "<:xzx_wave:1234567890000012>"    # wave / welcome
-E_BOT    = "<:xzx_bot:1234567890000013>"     # bot / verification
-E_PIN    = "<:xzx_pin:1234567890000014>"     # pin / role
-E_CLOCK  = "<:xzx_clock:1234567890000015>"   # clock / time
-E_CHART  = "<:xzx_chart:1234567890000016>"   # chart / stats
-E_TOOL   = "<:xzx_tool:1234567890000017>"    # wrench / setup
-E_TRASH  = "<:xzx_trash:1234567890000018>"   # trash / delete
-E_LINK   = "<:xzx_link:1234567890000019>"    # link / external
-E_COIN   = "<:xzx_coin:1234567890000020>"    # coin / currency
+# ------------------------------------------------------------ Custom emojis ----
+# Black-and-white emoji pack. Each entry shows a monochrome fallback until you
+# upload its image (emoji pack: xzx_<name>.png) to your server and paste the ID
+# into _EMOJI_IDS below. 0 means "use the fallback". Static: <:name:ID>.
+# Usage in cogs: from common import E  ->  f"{E.check} Done", f"{E.lock} Locked".
+_EMOJI_IDS = {
+    "check": 0, "cross": 0, "warn": 0, "info": 0, "alert": 0, "star": 0, "ticket": 0,
+    "crown": 0, "lock": 0, "unlock": 0, "key": 0, "shop": 0, "cart": 0, "gift": 0,
+    "wave": 0, "bot": 0, "pin": 0, "tack": 0, "clock": 0, "hourglass": 0, "chart": 0,
+    "tool": 0, "gear": 0, "trash": 0, "link": 0, "coin": 0, "shield": 0, "user": 0,
+    "users": 0, "roles": 0, "chat": 0, "note": 0, "edit": 0, "package": 0, "receipt": 0,
+    "screen": 0, "bell": 0, "zap": 0, "rocket": 0, "scroll": 0, "clip": 0, "calendar": 0,
+    "gem": 0, "globe": 0, "test": 0, "ban": 0, "game": 0, "announce": 0, "money": 0,
+    "plus": 0, "minus": 0, "image": 0, "film": 0, "mail": 0, "book": 0, "file": 0,
+    "folder": 0, "home": 0, "idea": 0, "refresh": 0, "sound": 0, "mute": 0, "trophy": 0,
+    "search": 0, "fire": 0, "flag": 0, "clean": 0, "door": 0, "clipboard": 0, "id": 0,
+    "hashtag": 0, "scale": 0, "seed": 0, "save": 0, "bug": 0, "inbox": 0, "outbox": 0,
+}
+_EMOJI_FALLBACK = {
+    "check": "✓", "cross": "✗", "warn": "⚠", "info": "ⓘ", "alert": "◉", "star": "★",
+    "ticket": "▫", "crown": "♔", "lock": "⬟", "unlock": "⬠", "key": "⚿", "shop": "▤",
+    "cart": "▤", "gift": "✦", "wave": "◡", "bot": "◲", "pin": "◆", "tack": "◆",
+    "clock": "◷", "hourglass": "⧖", "chart": "▤", "tool": "⚒", "gear": "⚙", "trash": "✕",
+    "link": "↗", "coin": "◎", "shield": "⬡", "user": "◉", "users": "◍", "roles": "◈",
+    "chat": "❝", "note": "✎", "edit": "✎", "package": "▣", "receipt": "▤", "screen": "▭",
+    "bell": "◖", "zap": "↯", "rocket": "➤", "scroll": "▱", "clip": "⊘", "calendar": "▦",
+    "gem": "◆", "globe": "◍", "test": "⚗", "ban": "⊘", "game": "◰", "announce": "◁",
+    "money": "◎", "plus": "+", "minus": "−", "image": "▧", "film": "▶", "mail": "✉",
+    "book": "▤", "file": "▭", "folder": "▭", "home": "⌂", "idea": "◌", "refresh": "⟳",
+    "sound": "◂", "mute": "◁", "trophy": "▲", "search": "⌕", "fire": "▲", "flag": "⚑",
+    "clean": "✕", "door": "▯", "clipboard": "▦", "id": "▭", "hashtag": "#", "scale": "⚖",
+    "seed": "○", "save": "▤", "bug": "◈", "inbox": "▽", "outbox": "△",
+}
+
+
+def _emoji(name: str) -> str:
+    """Custom emoji <:xzx_name:id> when an ID is set, else the monochrome fallback."""
+    eid = _EMOJI_IDS.get(name, 0)
+    return f"<:xzx_{name}:{eid}>" if eid else _EMOJI_FALLBACK.get(name, "")
+
+
+E = SimpleNamespace(**{_n: _emoji(_n) for _n in _EMOJI_FALLBACK})
+
+
+def resolve_emojis(emojis) -> int:
+    """Switch the registry over to uploaded custom emojis automatically.
+
+    Pass the bot's emojis (bot.emojis) on ready. Any emoji named ``xzx_<name>`` that
+    matches a registry entry is wired in live - no manual ID editing needed. Entries
+    with no uploaded match keep their monochrome fallback. Returns how many resolved."""
+    by_name = {e.name: e for e in emojis}
+    found = 0
+    for name in _EMOJI_FALLBACK:
+        emoji = by_name.get(f"xzx_{name}")
+        if emoji is not None:
+            _EMOJI_IDS[name] = emoji.id
+            setattr(E, name, f"<{'a' if getattr(emoji, 'animated', False) else ''}:xzx_{name}:{emoji.id}>")
+            found += 1
+    return found
 
 UNITS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
 HEX_RE = re.compile(r"^#?([0-9a-fA-F]{6})$")

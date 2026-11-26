@@ -9,7 +9,7 @@ import db
 import ui
 from logutil import emit
 from cogs.shop import product_autocomplete
-from common import ACCENT, COLOR, DANGER, SUCCESS, WARN, UserError, check_can_send, is_staff
+from common import ACCENT, COLOR, DANGER, SUCCESS, WARN, UserError, check_can_send, is_staff, E
 
 log = logging.getLogger("verification-bot")
 
@@ -24,14 +24,14 @@ def review_embed(guild: discord.Guild, user: discord.abc.User, r) -> discord.Emb
     if r["comment"]:
         lines += ["", "\n".join(f"> {line}" for line in r["comment"].splitlines() if line.strip())]
     details = ui.kv(
-        ("🛡️ Staff", f"<@{r['staff_id']}>" if r["staff_id"] else None),
-        ("🎫 Ticket", r["product_name"].replace("Ticket ", "", 1) if is_ticket else None),
-        ("✅ Purchase", "Verified buyer" if r["order_code"] else None),
+        (f"{E.shield} Staff", f"<@{r['staff_id']}>" if r["staff_id"] else None),
+        (f"{E.ticket} Ticket", r["product_name"].replace("Ticket ", "", 1) if is_ticket else None),
+        (f"{E.check} Purchase", "Verified buyer" if r["order_code"] else None),
     )
     if details:
         lines += ["", ui.DIVIDER, details]
     return ui.card(
-        "🎫 Support review" if is_ticket else r["product_name"], "\n".join(lines), color=SUCCESS if r["stars"] >= 4 else (WARN if r["stars"] == 3 else DANGER),
+        f"{E.ticket} Support review" if is_ticket else r["product_name"], "\n".join(lines), color=SUCCESS if r["stars"] >= 4 else (WARN if r["stars"] == 3 else DANGER),
         author=(user.display_name, user.display_avatar.url), footer=f"{'Ticket review' if is_ticket else 'Review'} #{r['id']} · {guild.name}", timestamp=True,
     )
 
@@ -69,8 +69,8 @@ async def post_ticket_review(guild: discord.Guild, user: discord.abc.User, ticke
     await db.execute("UPDATE reviews SET channel_id = ?, message_id = ? WHERE id = ?", (channel.id, message.id, r["id"]))
     await emit(
         guild, "tickets", "Ticket review posted",
-        ui.kv(("👤 Reviewer", f"{user.mention} (`{user.id}`)"), ("🎫 Ticket", name.replace("Ticket ", "", 1)), ("⭐ Rating", f"{ui.stars(stars)} {stars}/5"), ("🛡️ Staff", f"<@{ticket['claimed_by']}>" if ticket["claimed_by"] else "Nobody claimed it"),
-              ("💬 Comment", "Yes" if comment else None)),
+        ui.kv((f"{E.user} Reviewer", f"{user.mention} (`{user.id}`)"), (f"{E.ticket} Ticket", name.replace("Ticket ", "", 1)), (f"{E.star} Rating", f"{ui.stars(stars)} {stars}/5"), (f"{E.shield} Staff", f"<@{ticket['claimed_by']}>" if ticket["claimed_by"] else "Nobody claimed it"),
+              (f"{E.chat} Comment", "Yes" if comment else None)),
         subject=user.id, ids=(("review", r["id"]), ("ticket", ticket["number"])),
     )
     return await db.fetch_one("SELECT * FROM reviews WHERE id = ?", (r["id"],)), message
@@ -152,8 +152,8 @@ async def save_product_review(bot: commands.Bot, guild: discord.Guild, user: dis
     await refresh_product_card(bot, guild, p["name"])
     await emit(
         guild, "shop", "Product review posted" if existing is None else "Product review updated",
-        ui.kv(("👤 Reviewer", f"{user.mention} (`{user.id}`)"), ("📦 Product", p["name"]), ("⭐ Rating", f"{ui.stars(stars)} {stars}/5"),
-              ("✅ Purchase", f"Verified buyer, order `{code}`" if code else "Not a verified buyer"), ("🛡️ Staff tagged", f"<@{staff_id}>" if staff_id else None)),
+        ui.kv((f"{E.user} Reviewer", f"{user.mention} (`{user.id}`)"), (f"{E.package} Product", p["name"]), (f"{E.star} Rating", f"{ui.stars(stars)} {stars}/5"),
+              (f"{E.check} Purchase", f"Verified buyer, order `{code}`" if code else "Not a verified buyer"), (f"{E.shield} Staff tagged", f"<@{staff_id}>" if staff_id else None)),
         subject=user.id, ids=(("product", p["name"]), ("order", code)),
     )
     return r, message, existing, code, channel
@@ -195,7 +195,7 @@ class ProductReviewButton(discord.ui.DynamicItem[discord.ui.Button], template=r"
             msg = "Only buyers can review products, and I can't find a purchase on your account." if settings["require_purchase"] else "There are no products to review yet."
             return await interaction.response.send_message(msg, ephemeral=True)
         await interaction.response.send_message(
-            view=ui.card("🛍️ Review a product", "Which product do you want to review?", color=COLOR, guild=guild, section="Reviews").with_view(ProductPickView(interaction.client, guild, products[:25])),
+            view=ui.card(f"{E.shop} Review a product", "Which product do you want to review?", color=COLOR, guild=guild, section="Reviews").with_view(ProductPickView(interaction.client, guild, products[:25])),
             ephemeral=True,
         )
 
@@ -212,7 +212,7 @@ class ProductPickView(discord.ui.View):
             if not p:
                 return await interaction.response.send_message("That product doesn't exist any more.", ephemeral=True)
             await interaction.response.edit_message(
-                view=ui.card(f"🛍️ {p['name']}", "How many stars do you give it?", color=COLOR, guild=guild, section="Reviews").with_view(StarPickView(bot, guild, p)))
+                view=ui.card(f"{E.shop} {p['name']}", "How many stars do you give it?", color=COLOR, guild=guild, section="Reviews").with_view(StarPickView(bot, guild, p)))
 
         select.callback = picked
         self.add_item(select)
@@ -248,8 +248,8 @@ class ProductReviewModal(discord.ui.Modal):
         view = discord.ui.View()
         view.add_item(discord.ui.Button(style=discord.ButtonStyle.link, label="See your review", emoji="⭐", url=message.jump_url))
         await interaction.response.edit_message(view=ui.card(
-            "✅ Review updated" if existing else "✅ Thanks for your review!",
-            f"{ui.stars(self.stars)}  **{self.stars}/5** for **{self.p['name']}**" + ("\n✅ Verified buyer" if code else ""),
+            f"{E.check} Review updated" if existing else f"{E.check} Thanks for your review!",
+            f"{ui.stars(self.stars)}  **{self.stars}/5** for **{self.p['name']}**" + (f"\n{E.check} Verified buyer" if code else ""),
             color=SUCCESS, guild=self.guild, section="Reviews").with_view(view))
 
 
@@ -286,8 +286,8 @@ class ReviewCog(commands.Cog):
         r, message, existing, code, channel = await save_product_review(self.bot, guild, user, p, stars.value, comment, staff.id if staff else None)
 
         done = ui.card(
-            "✅ Review updated" if existing else "✅ Thanks for your review!",
-            f"{ui.stars(stars.value)}  **{stars.value}/5** for **{p['name']}**" + (f"\n🛡️ Thanks to {staff.mention}" if staff else "") + f"\n\n[See it in {channel.mention}]({message.jump_url})",
+            f"{E.check} Review updated" if existing else f"{E.check} Thanks for your review!",
+            f"{ui.stars(stars.value)}  **{stars.value}/5** for **{p['name']}**" + (f"\n{E.shield} Thanks to {staff.mention}" if staff else "") + f"\n\n[See it in {channel.mention}]({message.jump_url})",
             color=SUCCESS, guild=guild, section="Reviews",
         )
         await interaction.followup.send(view=done, ephemeral=True)
@@ -327,10 +327,10 @@ class Reviews(commands.GroupCog, group_name="reviews", group_description="Review
             await db.upsert_review_settings(interaction.guild_id, **updates)
         s = await db.get_review_settings(interaction.guild_id)
         embed = ui.card(
-            "⭐ Review settings" if not updates else "✅ Review settings saved",
+            f"{E.star} Review settings" if not updates else f"{E.check} Review settings saved",
             ui.kv(
-                ("🛍️ Product reviews", f"<#{s['channel_id']}>" if s and s["channel_id"] else "Not set"),
-                ("🛡️ Staff reviews", f"<#{s['staff_channel_id']}>" if s and s["staff_channel_id"]
+                (f"{E.shop} Product reviews", f"<#{s['channel_id']}>" if s and s["channel_id"] else "Not set"),
+                (f"{E.shield} Staff reviews", f"<#{s['staff_channel_id']}>" if s and s["staff_channel_id"]
                  else (f"<#{s['channel_id']}> (same as products, set `staff_channel` to split them)" if s and s["channel_id"] else "Not set")),
                 ("Buyers only", "Yes" if s and s["require_purchase"] else "No"),
             ),
@@ -363,7 +363,7 @@ class Reviews(commands.GroupCog, group_name="reviews", group_description="Review
                 " UNION ALL SELECT stars AS score FROM reviews WHERE guild_id = ? AND staff_id IS NOT NULL AND kind = 'product'"
                 ")", (guild.id, guild.id),
             )
-            title, section = "🏆 Staff leaderboard", "Staff ratings"
+            title, section = f"{E.trophy} Staff leaderboard", "Staff ratings"
             lines = [f"{ui.rank(i)} <@{r['who']}>\n　{ui.stars(r['avg'])} **{r['avg']:.2f}** · {ui.plural(r['n'], 'rating')}" for i, r in enumerate(rows)]
             head = f"**Overall** · {ui.rating_line(overall['avg'], overall['n'])}" if overall and overall["n"] else ""
             footer_note = "Counts ticket ratings (tickets a staff member claimed) and product reviews that tag a staff member. Ranked by average, then by number of ratings."
@@ -372,7 +372,7 @@ class Reviews(commands.GroupCog, group_name="reviews", group_description="Review
                 "SELECT product_name AS name, AVG(stars) AS avg, COUNT(*) AS n FROM reviews WHERE guild_id = ? AND kind = 'product' GROUP BY product_name ORDER BY avg DESC, n DESC LIMIT 10",
                 (guild.id,),
             )
-            title, section = "🏆 Product leaderboard", "Customer reviews"
+            title, section = f"{E.trophy} Product leaderboard", "Customer reviews"
             lines = [f"{ui.rank(i)} **{r['name']}**\n　{ui.stars(r['avg'])} **{r['avg']:.2f}** · {ui.plural(r['n'], 'review')}" for i, r in enumerate(rows)]
             head, footer_note = "", "Ranked by average stars, then by number of reviews."
         if not rows:
@@ -397,9 +397,9 @@ class Reviews(commands.GroupCog, group_name="reviews", group_description="Review
         lines = []
         for r in rows:
             kind = "🎫" if r["kind"] == "ticket" else "🛍️"
-            extra = (" · ✅" if r["order_code"] else "") + (f" · 🛡️ <@{r['staff_id']}>" if r["staff_id"] else "")
+            extra = (f" · {E.check}" if r["order_code"] else "") + (f" · {E.shield} <@{r['staff_id']}>" if r["staff_id"] else "")
             lines.append(f"`#{r['id']}` {ui.stars(r['stars'])} {kind} **{r['product_name']}** · <@{r['user_id']}>{extra}")
-        await interaction.response.send_message(view=ui.card("⭐ Recent reviews", "\n".join(lines), guild=interaction.guild, section="Reviews"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.star} Recent reviews", "\n".join(lines), guild=interaction.guild, section="Reviews"), ephemeral=True)
 
     @app_commands.command(description="Delete a review by its ID")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -419,10 +419,10 @@ class Reviews(commands.GroupCog, group_name="reviews", group_description="Review
         await refresh_product_card(self.bot, interaction.guild, r["product_name"])
         await emit(
             interaction.guild, "shop", "Review removed",
-            ui.kv(("👤 Reviewer", f"<@{r['user_id']}> (`{r['user_id']}`)"), ("📦 Product", r["product_name"]), ("⭐ Rating", f"{r['stars']}/5")),
+            ui.kv((f"{E.user} Reviewer", f"<@{r['user_id']}> (`{r['user_id']}`)"), (f"{E.package} Product", r["product_name"]), (f"{E.star} Rating", f"{r['stars']}/5")),
             actor=interaction.user, subject=r["user_id"], ids=(("review", review_id),),
         )
-        await interaction.followup.send(view=ui.card("🗑️ Review removed", f"Deleted review `#{review_id}` of **{r['product_name']}**.", color=SUCCESS), ephemeral=True)
+        await interaction.followup.send(view=ui.card(f"{E.trash} Review removed", f"Deleted review `#{review_id}` of **{r['product_name']}**.", color=SUCCESS), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

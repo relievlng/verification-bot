@@ -8,7 +8,7 @@ from discord.ext import commands
 
 import ui
 
-from common import COLOR, DANGER, INFO, WARN, UserError
+from common import COLOR, DANGER, INFO, WARN, UserError, E
 from logutil import emit
 import presets
 from templateutil import extract_template_code, is_invite, parse_template, safe_permissions, tree_text
@@ -34,7 +34,7 @@ class ConfirmView(discord.ui.View):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("Only the admin who ran the command can confirm this.", ephemeral=True)
         self.stop()
-        await interaction.response.edit_message(view=simple("⏳ Building your server…", "This can take a few minutes. Please leave the channels alone until it's done.", WARN))
+        await interaction.response.edit_message(view=simple(f"{E.hourglass} Building your server…", "This can take a few minutes. Please leave the channels alone until it's done.", WARN))
         await self.cog.run_import(interaction, self.parsed, self.skip_existing)
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
@@ -316,7 +316,7 @@ class Templates(commands.GroupCog, group_name="template", group_description="Cop
 
         async def progress(done: int, total: int) -> None:
             try:
-                await interaction.edit_original_response(view=simple("⏳ Building your server…", f"{done} of {total} items done.", WARN))
+                await interaction.edit_original_response(view=simple(f"{E.hourglass} Building your server…", f"{done} of {total} items done.", WARN))
             except discord.HTTPException:
                 pass
 
@@ -330,7 +330,7 @@ class Templates(commands.GroupCog, group_name="template", group_description="Cop
             )
         self.running.discard(guild.id)
 
-        embed = ui.card("✅ Import finished", color=COLOR if not errors else WARN, section="Templates")
+        embed = ui.card(f"{E.check} Import finished", color=COLOR if not errors else WARN, section="Templates")
         embed.add_field(name="Roles", value=f"{stats['roles_created']} created · {stats['roles_skipped']} already existed")
         embed.add_field(name="Categories", value=f"{stats['categories_created']} created · {stats['categories_skipped']} already existed")
         embed.add_field(name="Channels", value=f"{stats['channels_created']} created · {stats['channels_skipped']} already existed")
@@ -424,11 +424,11 @@ class DedupeConfirmView(discord.ui.View):
             item.disabled = True
         summary = f"Removed **{removed}** duplicate channel(s)." + (f" **{failed}** couldn't be deleted." if failed else "")
         await interaction.edit_original_response(
-            view=simple("✅ Cleanup done", summary, COLOR).with_view(self))
+            view=simple(f"{E.check} Cleanup done", summary, COLOR).with_view(self))
         guild = interaction.guild
         if guild is not None:
-            await emit(guild, "server", "🗑️ Duplicate channels removed",
-                       ui.kv(("🛡️ By", interaction.user.mention), ("Removed", str(removed)),
+            await emit(guild, "server", f"{E.trash} Duplicate channels removed",
+                       ui.kv((f"{E.shield} By", interaction.user.mention), ("Removed", str(removed)),
                              ("Failed", str(failed) if failed else None)))
         self.stop()
 
@@ -467,7 +467,7 @@ class Dedupe(commands.Cog):
         plans = await _plan_dedupe(guild)
         if not plans:
             await interaction.followup.send(
-                view=simple("✅ No duplicates found", "Every channel name here is already unique.", COLOR))
+                view=simple(f"{E.check} No duplicates found", "Every channel name here is already unique.", COLOR))
             return
         lines = []
         for p in plans[:20]:
@@ -477,7 +477,7 @@ class Dedupe(commands.Cog):
         if len(plans) > 20:
             body += f"\n…and {len(plans) - 20} more group(s)."
         total_remove = sum(len(p["remove"]) for p in plans)
-        embed = simple(f"⚠️ {total_remove} duplicate channel(s) found",
+        embed = simple(f"{E.warn} {total_remove} duplicate channel(s) found",
                        body + "\n\nThe kept channel is whichever has message content (or, for voice channels "
                               "or a tie, whichever is oldest). This can't be undone — double-check before confirming.",
                        WARN)

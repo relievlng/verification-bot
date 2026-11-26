@@ -1,3 +1,4 @@
+from common import E
 """Ready-made server layouts. Pure data with no Discord imports, so it's easy to test."""
 
 BITS = {
@@ -89,8 +90,8 @@ RULES_TEXT = (
 )
 BOT_INFO_TEXT = (
     "Our bot provides server utilities, verification, moderation and other useful features.\n\n"
-    "Use ⚙️・commands for available commands.\n\n"
-    "If you find a problem, tell us in 🐛・bug-reports."
+    f"Use {E.gear}・commands for available commands.\n\n"
+    f"If you find a problem, tell us in {E.bug}・bug-reports."
 )
 
 
@@ -101,17 +102,17 @@ def community() -> dict:
                           "view_audit_log", "moderate_members", "manage_threads", "mention_everyone")
     # position = rank (higher = more important). Administrator is never included: the importer strips it on purpose.
     roles = [
-        (R["owner"], "👑 Owner", 0xF1C40F, True, False, everything, 11),
-        (R["co_owner"], "🛡️ Co Owner", 0xE67E22, True, False, everything, 10),
-        (R["admin"], "⚙️ Administrator", 0xE74C3C, True, False,
+        (R["owner"], f"{E.crown} Owner", 0xF1C40F, True, False, everything, 11),
+        (R["co_owner"], f"{E.shield} Co Owner", 0xE67E22, True, False, everything, 10),
+        (R["admin"], f"{E.gear} Administrator", 0xE74C3C, True, False,
          BASE | P("manage_guild", "manage_channels", "manage_roles", "manage_messages", "kick", "ban", "manage_webhooks", "view_audit_log"), 9),
-        (R["head"], "🔨 Head Staff", 0x9B59B6, True, True, BASE | P("manage_messages", "kick", "moderate_members", "manage_threads", "view_audit_log"), 8),
-        (R["mod"], "🛠️ Moderator", 0x3498DB, True, True, BASE | P("manage_messages", "moderate_members", "kick", "manage_threads"), 7),
-        (R["support"], "🔧 Support", 0x2ECC71, True, True, manage_base, 6),
-        (R["bots"], "🤖 Bots", 0x95A5A6, True, False, P("view_channel", "send_messages", "embed_links", "attach_files", "read_message_history", "add_reactions", "external_emojis"), 5),
-        (R["premium"], "💎 Premium", 0xE91E63, True, False, BASE, 4),
-        (R["verified"], "✅ Verified", 0x1ABC9C, False, False, BASE, 3),
-        (R["member"], "👤 Member", 0x7F8C8D, False, False, BASE, 2),
+        (R["head"], f"{E.tool} Head Staff", 0x9B59B6, True, True, BASE | P("manage_messages", "kick", "moderate_members", "manage_threads", "view_audit_log"), 8),
+        (R["mod"], f"{E.tool} Moderator", 0x3498DB, True, True, BASE | P("manage_messages", "moderate_members", "kick", "manage_threads"), 7),
+        (R["support"], f"{E.tool} Support", 0x2ECC71, True, True, manage_base, 6),
+        (R["bots"], f"{E.bot} Bots", 0x95A5A6, True, False, P("view_channel", "send_messages", "embed_links", "attach_files", "read_message_history", "add_reactions", "external_emojis"), 5),
+        (R["premium"], f"{E.gem} Premium", 0xE91E63, True, False, BASE, 4),
+        (R["verified"], f"{E.check} Verified", 0x1ABC9C, False, False, BASE, 3),
+        (R["member"], f"{E.user} Member", 0x7F8C8D, False, False, BASE, 2),
         (R["unverified"], "🤍 Unverified", 0xBDC3C7, False, False, 0, 1),
     ]
     role_items = [
@@ -121,42 +122,42 @@ def community() -> dict:
     role_items.sort(key=lambda r: r["position"], reverse=True)
 
     categories_spec = [
-        (101, "📌 INFORMATION", public_category()), (102, "🤖 BOT", public_category()), (103, "💬 COMMUNITY", public_category()),
-        (104, "🎫 SUPPORT", public_category()), (105, "🔊 VOICE", public_category()), (106, "🔒 STAFF", staff_category()),
+        (101, f"{E.tack} INFORMATION", public_category()), (102, f"{E.bot} BOT", public_category()), (103, f"{E.chat} COMMUNITY", public_category()),
+        (104, f"{E.ticket} SUPPORT", public_category()), (105, f"{E.sound} VOICE", public_category()), (106, f"{E.lock} STAFF", staff_category()),
     ]
     channels_spec = [
         # id, name, kind, parent, topic, overwrites
-        (201, "📢・announcements", "text", 101, "Server news and updates", readonly(ADMINS)),
-        (202, "📜・rules", "text", 101, "Please read before chatting", readonly(TOP_STAFF, also_see=[R["unverified"]])),
-        (203, "📖・information", "text", 101, "Everything you need to know", readonly(TOP_STAFF, also_see=[R["unverified"]])),
-        (204, "🔗・links", "text", 101, "Useful links", readonly(TOP_STAFF)),
+        (201, f"{E.announce}・announcements", "text", 101, "Server news and updates", readonly(ADMINS)),
+        (202, f"{E.scroll}・rules", "text", 101, "Please read before chatting", readonly(TOP_STAFF, also_see=[R["unverified"]])),
+        (203, f"{E.book}・information", "text", 101, "Everything you need to know", readonly(TOP_STAFF, also_see=[R["unverified"]])),
+        (204, f"{E.link}・links", "text", 101, "Useful links", readonly(TOP_STAFF)),
         (205, "❓・faq", "text", 101, "Frequently asked questions", readonly(TOP_STAFF)),
-        (206, "🤖・bot-info", "text", 102, "About our bot", readonly(TOP_STAFF)),
-        (207, "🔑・verification", "text", 102, "Verify here to unlock the server", readonly((), also_see=[R["unverified"]], bots_write=True)),
-        (208, "⚙️・commands", "text", 102, "Use bot commands here", chat()),
-        (209, "📊・bot-status", "text", 102, "Bot status and updates", readonly(TOP_STAFF, bots_write=True)),
-        (210, "💡・suggestions", "text", 102, "Suggest a feature for the bot", chat()),
-        (211, "🐛・bug-reports", "text", 102, "Found a problem? Tell us here", chat()),
-        (212, "💬・general", "text", 103, "General chat", chat()),
-        (213, "👋・introductions", "text", 103, "Say hello", chat()),
-        (214, "🎮・gaming", "text", 103, "Talk games", chat()),
+        (206, f"{E.bot}・bot-info", "text", 102, "About our bot", readonly(TOP_STAFF)),
+        (207, f"{E.key}・verification", "text", 102, "Verify here to unlock the server", readonly((), also_see=[R["unverified"]], bots_write=True)),
+        (208, f"{E.gear}・commands", "text", 102, "Use bot commands here", chat()),
+        (209, f"{E.chart}・bot-status", "text", 102, "Bot status and updates", readonly(TOP_STAFF, bots_write=True)),
+        (210, f"{E.idea}・suggestions", "text", 102, "Suggest a feature for the bot", chat()),
+        (211, f"{E.bug}・bug-reports", "text", 102, "Found a problem? Tell us here", chat()),
+        (212, f"{E.chat}・general", "text", 103, "General chat", chat()),
+        (213, f"{E.wave}・introductions", "text", 103, "Say hello", chat()),
+        (214, f"{E.game}・gaming", "text", 103, "Talk games", chat()),
         (215, "📸・media", "text", 103, "Share pictures and clips", chat()),
         (216, "😂・memes", "text", 103, "Memes only", chat()),
-        (217, "💡・suggestions", "text", 103, "Suggest something for the server", chat()),
-        (218, "🎫・create-ticket", "text", 104, "Open a ticket with the button below", readonly(TOP_STAFF, bots_write=True)),
-        (219, "📩・support", "text", 104, "Get help from the team", chat()),
-        (220, "🚨・report", "text", 104, "Report a problem or a member", chat()),
-        (221, "🔊・General", "voice", 105, None, voice()),
-        (222, "🎮・Gaming", "voice", 105, None, voice()),
-        (223, "💬・Chilling", "voice", 105, None, voice()),
-        (224, "🔒・Staff VC", "voice", 105, None, staff_voice()),
+        (217, f"{E.idea}・suggestions", "text", 103, "Suggest something for the server", chat()),
+        (218, f"{E.ticket}・create-ticket", "text", 104, "Open a ticket with the button below", readonly(TOP_STAFF, bots_write=True)),
+        (219, f"{E.mail}・support", "text", 104, "Get help from the team", chat()),
+        (220, f"{E.alert}・report", "text", 104, "Report a problem or a member", chat()),
+        (221, f"{E.sound}・General", "voice", 105, None, voice()),
+        (222, f"{E.game}・Gaming", "voice", 105, None, voice()),
+        (223, f"{E.chat}・Chilling", "voice", 105, None, voice()),
+        (224, f"{E.lock}・Staff VC", "voice", 105, None, staff_voice()),
         (225, "💤・AFK", "voice", 105, None, voice()),
-        (226, "👑・staff-chat", "text", 106, "Staff discussion", staff_chat()),
-        (227, "📋・staff-logs", "text", 106, "Moderation logs", staff_log()),
-        (228, "🚨・reports", "text", 106, "Reports from members", staff_chat()),
-        (229, "🎫・ticket-logs", "text", 106, "Ticket transcripts and activity", staff_log()),
-        (230, "🤖・bot-logs", "text", 106, "Bot logs", staff_log()),
-        (231, "⚙️・staff-commands", "text", 106, "Staff bot commands", staff_chat()),
+        (226, f"{E.crown}・staff-chat", "text", 106, "Staff discussion", staff_chat()),
+        (227, f"{E.clipboard}・staff-logs", "text", 106, "Moderation logs", staff_log()),
+        (228, f"{E.alert}・reports", "text", 106, "Reports from members", staff_chat()),
+        (229, f"{E.ticket}・ticket-logs", "text", 106, "Ticket transcripts and activity", staff_log()),
+        (230, f"{E.bot}・bot-logs", "text", 106, "Bot logs", staff_log()),
+        (231, f"{E.gear}・staff-commands", "text", 106, "Staff bot commands", staff_chat()),
     ]
     categories = [
         {"id": cid, "name": name, "kind": "category", "original_type": 4, "parent_id": None, "position": i, "topic": None, "nsfw": False,
@@ -173,18 +174,18 @@ def community() -> dict:
         "source_name": "Built-in layout", "everyone_id": EVERYONE, "roles": role_items, "categories": categories, "channels": channels,
         "skipped": 0, "converted": 0,
         "messages": [
-            {"channel_id": 202, "title": "📜 SERVER RULES", "text": RULES_TEXT},
-            {"channel_id": 206, "title": "🤖 BOT INFORMATION", "text": BOT_INFO_TEXT},
+            {"channel_id": 202, "title": f"{E.scroll} SERVER RULES", "text": RULES_TEXT},
+            {"channel_id": 206, "title": f"{E.bot} BOT INFORMATION", "text": BOT_INFO_TEXT},
         ],
         "notes": [
-            "👑 Owner and 🛡️ Co Owner get every management permission **except Administrator** (I never create Administrator roles). Tick it yourself in Server Settings → Roles if you want it.",
+            f"{E.crown} Owner and {E.shield} Co Owner get every management permission **except Administrator** (I never create Administrator roles). Tick it yourself in Server Settings → Roles if you want it.",
             "I can only give roles permissions I have myself. Manage Webhooks and Manage Threads aren't in my invite, so those two are skipped unless I have them.",
             "I also post the **rules** and **bot info** messages for you.",
         ],
         "next_steps": [
-            "`/verify setup channel:#🔑・verification role:✅ Verified unverified_role:🤍 Unverified`",
-            "`/ticket setup channel:#🎫・create-ticket staff_role:🔧 Support transcript_channel:#🎫・ticket-logs`",
-            "`/logs setup channel:#🤖・bot-logs`  and  `/welcome settings channel:#💬・general`",
+            f"`/verify setup channel:#{E.key}・verification role:{E.check} Verified unverified_role:🤍 Unverified`",
+            f"`/ticket setup channel:#{E.ticket}・create-ticket staff_role:{E.tool} Support transcript_channel:#{E.ticket}・ticket-logs`",
+            f"`/logs setup channel:#{E.bot}・bot-logs`  and  `/welcome settings channel:#{E.chat}・general`",
             "Drag my role **above** all the new roles, then run `/template create` to get your shareable template link.",
         ],
     }
@@ -228,8 +229,8 @@ def _booster_chat() -> list:
 def fivem_hub() -> dict:
     staff_perms = BASE | P("manage_messages", "manage_channels", "kick", "ban", "moderate_members", "view_audit_log", "manage_threads")
     roles = [
-        {"id": STAFF_ROLE, "name": "🛡️ Staff", "color": 0xE74C3C, "hoist": True, "mentionable": True, "permissions": staff_perms, "position": 2},
-        {"id": BOOSTER_ROLE, "name": "💎 Booster", "color": 0xF47FFF, "hoist": True, "mentionable": False, "permissions": BASE, "position": 1},
+        {"id": STAFF_ROLE, "name": f"{E.shield} Staff", "color": 0xE74C3C, "hoist": True, "mentionable": True, "permissions": staff_perms, "position": 2},
+        {"id": BOOSTER_ROLE, "name": f"{E.gem} Booster", "color": 0xF47FFF, "hoist": True, "mentionable": False, "permissions": BASE, "position": 1},
     ]
     deco = lambda name: f"╔═════ {name} ═════╗"
     categories_spec = [
@@ -240,15 +241,15 @@ def fivem_hub() -> dict:
     chat = []  # no overwrites: everyone can read and talk (inherits the category)
     ch = [
         # community
-        (101, "👋・joined", "text", _bot_post()), (101, "💥・custom-invite", "text", chat), (101, "💫・invite-checker", "text", chat),
+        (101, f"{E.wave}・joined", "text", _bot_post()), (101, "💥・custom-invite", "text", chat), (101, "💫・invite-checker", "text", chat),
         # .gg/uav
-        (102, "🚨・anc", "text", _everyone_read()), (102, "🚨・mini-anc", "text", _everyone_read()), (102, "🔢・number-count", "text", chat),
-        (102, "📄・general", "text", chat), (102, "📷・montys", "text", _everyone_read()), (102, "🔮・giveaways", "text", _bot_post()),
+        (102, f"{E.alert}・anc", "text", _everyone_read()), (102, f"{E.alert}・mini-anc", "text", _everyone_read()), (102, f"{E.hashtag}・number-count", "text", chat),
+        (102, f"{E.file}・general", "text", chat), (102, "📷・montys", "text", _everyone_read()), (102, "🔮・giveaways", "text", _bot_post()),
         (102, "🙌・reviews", "text", chat), (102, "🤡・clowns", "text", chat), (102, "🏷️・request", "text", chat),
-        (102, "📃・suggestions", "text", chat), (102, "👕・partners", "text", chat), (102, "💎・boosting-perks", "text", _everyone_read()),
-        (102, "💰・premium", "text", _everyone_read()), (102, "🚀・services", "text", _everyone_read()), (102, "💲・mlo-showcase", "text", chat),
-        (102, "🔥・discord-intro", "text", chat), (102, "🎫・create-ticket", "text", _bot_post()),
-        (102, "🔇・drag", "voice", chat), (102, "🔊・vc", "voice", chat), (102, "🎭・stage", "voice", chat),
+        (102, f"{E.file}・suggestions", "text", chat), (102, "👕・partners", "text", chat), (102, f"{E.gem}・boosting-perks", "text", _everyone_read()),
+        (102, f"{E.money}・premium", "text", _everyone_read()), (102, f"{E.rocket}・services", "text", _everyone_read()), (102, f"{E.money}・mlo-showcase", "text", chat),
+        (102, f"{E.fire}・discord-intro", "text", chat), (102, f"{E.ticket}・create-ticket", "text", _bot_post()),
+        (102, f"{E.mute}・drag", "voice", chat), (102, f"{E.sound}・vc", "voice", chat), (102, f"{E.roles}・stage", "voice", chat),
     ]
     for symbol, name in (("✗", "fivem-reshades"), ("✗", "fivem-soundpacks"), ("✓", "monty-songs"), ("✗", "pink-reshade"), ("✗", "roads"), ("✗", "nve"),
                          ("✗", "mods"), ("✗", "fps-rpf"), ("✗", "boost-fps"), ("✗", "crosshairs"), ("✗", "paid-fps-pack"),
@@ -260,13 +261,13 @@ def fivem_hub() -> dict:
     for name in ("rz-gang-clothing", "rz-fps-pack", "rz-bundles", "rz-soundpacks", "rz-reshades", "rz-bloodfx", "rz-killfx",
                  "rz-tracers", "rz-ragdoll", "rz-ramps", "rz-crosshairs", "rz-opti-mods"):
         ch.append((105, f"🟡・{name}", "text", _everyone_read()))
-    ch.append((106, "💎・booster-announcements", "text", _booster_read()))
-    ch.append((106, "💎・booster-chat", "text", _booster_chat()))
+    ch.append((106, f"{E.gem}・booster-announcements", "text", _booster_read()))
+    ch.append((106, f"{E.gem}・booster-chat", "text", _booster_chat()))
     for name in ("36-vault-reshades", "fivem-compys", "fivem-clothing", "fivem-logos", "pure-mode", "rpf-files", "free-crosshair-x", "sites",
                  "editing-presets", "invisible-username", "onlyday-onlynight", "free-vpn-sites", "custom-gif-maker", "backup-files", "quantv",
                  "scripts", "better-tracking", "fivem-locos", "blur"):
-        ch.append((106, f"💎・{name}", "text", _booster_read()))
-    ch.append((107, "🔑・access", "text", _staff_only()))
+        ch.append((106, f"{E.gem}・{name}", "text", _booster_read()))
+    ch.append((107, f"{E.key}・access", "text", _staff_only()))
 
     categories = [
         {"id": cid, "name": name, "kind": "category", "original_type": 4, "parent_id": None, "position": i, "topic": None, "nsfw": False,
@@ -286,12 +287,12 @@ def fivem_hub() -> dict:
         "notes": [
             "This was rebuilt from screenshots, so emojis and symbols in channel names are my best guess. Rename anything you like afterwards.",
             "`request`, `suggestions`, `partners` and `mlo-showcase` were forum channels. They become normal text channels here (forums need Community turned on).",
-            "Only 🛡️ Staff and 💎 Booster roles are created. Boosters see the boosters category; only Staff see `access`.",
+            f"Only {E.shield} Staff and {E.gem} Booster roles are created. Boosters see the boosters category; only Staff see `access`.",
             "Content channels are read-only for members, and only staff can post in them.",
         ],
         "next_steps": [
-            "`/ticket setup channel:#🎫・create-ticket staff_role:🛡️ Staff`",
-            "`/welcome settings channel:#👋・joined`",
+            f"`/ticket setup channel:#{E.ticket}・create-ticket staff_role:{E.shield} Staff`",
+            f"`/welcome settings channel:#{E.wave}・joined`",
             "Drag my role **above** the new roles, then run `/template create` to get your shareable template link.",
         ],
     }

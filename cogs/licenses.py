@@ -34,7 +34,7 @@ from discord.ext import commands, tasks
 
 import db
 import ui
-from common import DANGER, SUCCESS, WARN, UserError
+from common import DANGER, SUCCESS, WARN, UserError, E
 from fileutil import public_base_url
 from logutil import emit, send_log
 from macros import DEFAULT_MACRO, FILTER_MACRO_CHOICES, KEY_MACRO_CHOICES, MACROS, clean_macro, macro_label, macro_name
@@ -104,11 +104,11 @@ def expiry_text(row) -> str:
 
 def status_text(row) -> str:
     if not row["active"]:
-        return "⛔ Disabled"
+        return f"{E.ban} Disabled"
     exp = parse_time(row["expires_at"])
     if exp is not None and exp <= now():
-        return "⌛ Expired"
-    return "✅ Active"
+        return f"{E.hourglass} Expired"
+    return f"{E.check} Active"
 
 
 async def log_event(license_id: Optional[int], event_type: str, detail: str = "") -> None:
@@ -200,7 +200,7 @@ async def _delete_licenses(rows) -> None:
 
 
 def license_embed(row, guild: Optional[discord.Guild] = None) -> discord.Embed:
-    embed = ui.card(f"🔑 {row['code']}", color=SUCCESS if status_text(row).startswith("✅") else WARN, guild=guild, section="Keys")
+    embed = ui.card(f"{E.key} {row['code']}", color=SUCCESS if status_text(row).startswith("✅") else WARN, guild=guild, section="Keys")
     last = parse_time(row["last_seen"])
     embed.description = ui.kv(
         ("Macro", macro_label(row["macro"])),
@@ -282,7 +282,7 @@ h1{{font-size:22px;margin:0 0 10px;font-weight:800}}p{{margin:0;color:#9a9a9a;li
 @app_commands.default_permissions(manage_guild=True)
 def _tos_dm(code: str, macro) -> discord.Embed:
     return ui.card(
-        "⛔ Your macro key was disabled — copying detected",
+        f"{E.ban} Your macro key was disabled — copying detected",
         f"Extra copies of the {macro_name(macro)} macro were found on a device using your key `{code}`.\n\n"
         "Copying, sharing or redistributing the macro breaks our **Terms of Service**, so your key has been **disabled** "
         "and the macro will stop working.\n\n"
@@ -292,7 +292,7 @@ def _tos_dm(code: str, macro) -> discord.Embed:
 
 def _shared_dm(code: str, macro) -> discord.Embed:
     return ui.card(
-        "⛔ Your macro key was disabled — used on another device",
+        f"{E.ban} Your macro key was disabled — used on another device",
         f"Your {macro_name(macro)} key `{code}` was used on a second computer. Keys lock to one device, and sharing or "
         "using a key on more than one machine breaks our **Terms of Service**, so the key has been **disabled** and the "
         "macro will stop working.\n\n"
@@ -302,7 +302,7 @@ def _shared_dm(code: str, macro) -> discord.Embed:
 
 def _reenabled_dm(code: str, macro) -> discord.Embed:
     return ui.card(
-        "✅ Your macro key is active again",
+        f"{E.check} Your macro key is active again",
         f"Your {macro_name(macro)} key `{code}` has been re-enabled and its device lock was cleared, so you can log in "
         "again on your computer — it will lock to the first device that logs in.\n\n"
         "Please don't share it: using it on another device will disable it again.",
@@ -348,7 +348,7 @@ class CopyDisableButton(discord.ui.DynamicItem[discord.ui.Button], template=r"co
             await log_event(row["id"], "deactivated", f"copy review: disabled by {interaction.user.id}")
             dmed = await _dm_user(interaction.client, row["user_id"], _tos_dm(row["code"], row["macro"]))
         embed = interaction.message.embeds[0] if interaction.message.embeds else ui.card("Copy review", "", color=DANGER)
-        embed.set_footer(text=f"⛔ Disabled by {interaction.user} · copies self-destruct on next check · "
+        embed.set_footer(text=f"{E.ban} Disabled by {interaction.user} · copies self-destruct on next check · "
                               + ("owner DM'd" if dmed else "owner not DM'd (DMs closed / no account)"))
         await interaction.response.edit_message(view=embed)
 
@@ -401,7 +401,7 @@ class ReenableKeyButton(discord.ui.DynamicItem[discord.ui.Button], template=r"sh
         await log_event(row["id"], "activated", f"shared-key re-enable by {interaction.user.id}; device lock cleared")
         dmed = await _dm_user(interaction.client, row["user_id"], _reenabled_dm(row["code"], row["macro"]))
         embed = interaction.message.embeds[0] if interaction.message.embeds else ui.card("Shared key", "", color=DANGER)
-        embed.set_footer(text=f"✅ Re-enabled by {interaction.user} · device lock cleared · "
+        embed.set_footer(text=f"{E.check} Re-enabled by {interaction.user} · device lock cleared · "
                               + ("owner DM'd" if dmed else "owner not DM'd (DMs closed / no account)"))
         await interaction.response.edit_message(view=embed)
 
@@ -438,7 +438,7 @@ class ConfirmDeleteAllView(discord.ui.View):
         try:
             guild = self.bot.get_guild(interaction.guild_id) if interaction.guild_id else None
             if guild is not None:
-                await emit(guild, "keys", "🗑️ All of a member's keys deleted",
+                await emit(guild, "keys", f"{E.trash} All of a member's keys deleted",
                            ui.kv(("Member", self.member.mention), ("Count", str(len(self.rows))),
                                  ("Keys", codes[:950]), ("By", interaction.user.mention)),
                            WARN, subject=self.member.id)
@@ -446,7 +446,7 @@ class ConfirmDeleteAllView(discord.ui.View):
             pass
         self.stop()
         await interaction.response.edit_message(
-            view=ui.card("🗑️ Keys deleted",
+            view=ui.card(f"{E.trash} Keys deleted",
                           f"Deleted all {len(self.rows)} key(s) for {self.member.mention}.", color=SUCCESS))
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
@@ -517,7 +517,7 @@ class DeleteSelectView(discord.ui.View):
         try:
             guild = self.bot.get_guild(interaction.guild_id) if interaction.guild_id else None
             if guild is not None:
-                await emit(guild, "keys", "🗑️ Selected keys deleted",
+                await emit(guild, "keys", f"{E.trash} Selected keys deleted",
                            ui.kv(("Member", self.member.mention), ("Count", str(len(rows))),
                                  ("Keys", codes[:950]), ("By", interaction.user.mention)),
                            WARN, subject=self.member.id)
@@ -525,7 +525,7 @@ class DeleteSelectView(discord.ui.View):
             pass
         self.stop()
         await interaction.response.edit_message(
-            view=ui.card("🗑️ Keys deleted",
+            view=ui.card(f"{E.trash} Keys deleted",
                           f"Deleted {len(rows)} key(s) for {self.member.mention}:\n{codes}", color=SUCCESS))
 
     async def _on_cancel(self, interaction: discord.Interaction):
@@ -567,8 +567,8 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
             self.expiry_sweep.start()
 
     async def auto_disable_shared(self, row, tried_hwid) -> None:
-        """A key used on a second device: disable it, DM the owner the ToS notice, and post to the
-        dedicated 🚨 shared-key log with a staff 'Re-enable key' button. Access control only."""
+        f"""A key used on a second device: disable it, DM the owner the ToS notice, and post to the
+        dedicated {E.alert} shared-key log with a staff 'Re-enable key' button. Access control only."""
         if row["active"]:
             await db.execute("UPDATE licenses SET active = 0 WHERE id = ?", (row["id"],))
         await log_event(row["id"], "deactivated", f"auto: used on a second device {str(tried_hwid)[:60]}")
@@ -580,11 +580,11 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
             who = (f"<@{row['user_id']}> · `{row['user_id']}`" if row["user_id"]
                    else (row["owner_name"] or "unassigned"))
             embed = ui.card(
-                "🚨 Key auto-disabled — used on a second device",
-                ui.kv(("👤 Owner", who), ("🔑 Key", f"`{row['code']}`"), ("🎮 Macro", macro_label(row["macro"])),
-                      ("🔒 Locked to", f"`{row['hwid']}`" if row["hwid"] else "—"),
-                      ("🕵️ Tried from", f"`{str(tried_hwid)[:60]}`"),
-                      ("📬 Owner", "DM sent" if dmed else "couldn't DM (DMs closed / no account)"),
+                f"{E.alert} Key auto-disabled — used on a second device",
+                ui.kv((f"{E.user} Owner", who), (f"{E.key} Key", f"`{row['code']}`"), (f"{E.game} Macro", macro_label(row["macro"])),
+                      (f"{E.lock} Locked to", f"`{row['hwid']}`" if row["hwid"] else "—"),
+                      (f"{E.search} Tried from", f"`{str(tried_hwid)[:60]}`"),
+                      (f"{E.mail} Owner", "DM sent" if dmed else "couldn't DM (DMs closed / no account)"),
                       ("↩️ Undo", "Re-enable below turns it back on, clears the device lock and DMs them")),
                 color=DANGER, guild=guild, section="Keys")
             await send_log(guild, "sharing", embed, view=shared_lock_view(row["id"]))
@@ -625,7 +625,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
             if exp is None or exp > nowt:
                 continue
             embed = ui.card(
-                "⌛ Your macro key has expired",
+                f"{E.hourglass} Your macro key has expired",
                 f"Your {macro_name(row['macro'])} key `{row['code']}` ran out {discord.utils.format_dt(exp, 'R')}, so it no longer works.\n\n"
                 "Grab a new one from the shop with `/store`. If you just renewed, log in again and you're set.",
                 color=WARN, section="Keys")
@@ -794,14 +794,14 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
             try:
                 open_ip = row["open_ip"] or "?"
                 ip_mismatch = open_ip != "?" and callback_ip != "?" and open_ip != callback_ip
-                ip_lines = [("🌐 Opened login from", f"||`{open_ip}`||"), ("🌐 Signed in from", f"||`{callback_ip}`||")]
+                ip_lines = [(f"{E.globe} Opened login from", f"||`{open_ip}`||"), (f"{E.globe} Signed in from", f"||`{callback_ip}`||")]
                 title = "🔗 Discord account linked to the macro"
                 color = SUCCESS
                 if ip_mismatch:
                     title = "@here ⚠️ Discord account linked — login IP changed mid-flow"
                     color = WARN
                 await emit(guild, "keys", title,
-                           ui.kv(("👤 Discord", f"<@{user_id}> · `{user_id}`"), ("🏷️ Name", name), *ip_lines),
+                           ui.kv((f"{E.user} Discord", f"<@{user_id}> · `{user_id}`"), ("🏷️ Name", name), *ip_lines),
                            color, subject=user_id)
             except Exception:
                 log.exception("Couldn't post a link log")
@@ -829,14 +829,14 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
         return guild
 
     async def key_log(self, row, title: str, user_id: Optional[int], lines: tuple, color=None,
-                      who_label: str = "👤 Discord", name: Optional[str] = None) -> None:
-        """Post to the 🔑 key-logs channel (set up with /logs). Never lets a logging problem block a login."""
+                      who_label: str = f"{E.user} Discord", name: Optional[str] = None) -> None:
+        f"""Post to the {E.key} key-logs channel (set up with /logs). Never lets a logging problem block a login."""
         who = (f"<@{user_id}> · `{user_id}`" + (f" · {name}" if name else "") if user_id else "No Discord account linked")
         try:
             guild = self.log_guild(row)
             if guild is None:
                 return
-            await emit(guild, "keys", title, ui.kv((who_label, who), ("🔑 Key", f"`{row['code']}`" if row is not None else None), *lines),
+            await emit(guild, "keys", title, ui.kv((who_label, who), (f"{E.key} Key", f"`{row['code']}`" if row is not None else None), *lines),
                        color, subject=user_id)
         except Exception:
             log.exception("Couldn't post a key log")
@@ -871,12 +871,12 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
         who = link["user_id"] if link else row["user_id"]
         if not row["active"]:
             await log_event(row["id"], "activation_denied", "Disabled")
-            await self.key_log(row, "⛔ Disabled key tried", who, (("❌ Refused", "The key is disabled"),), DANGER)
+            await self.key_log(row, f"{E.ban} Disabled key tried", who, ((f"{E.cross} Refused", "The key is disabled"),), DANGER)
             return web.Response(text="DENIED|KEY DISABLED")
         exp = parse_time(row["expires_at"])
         if exp is not None and exp <= now():
             await log_event(row["id"], "activation_denied", "Expired")
-            await self.key_log(row, "⌛ Expired key tried", who, (("❌ Refused", f"Expired {discord.utils.format_dt(exp, 'R')}"),), WARN)
+            await self.key_log(row, f"{E.hourglass} Expired key tried", who, ((f"{E.cross} Refused", f"Expired {discord.utils.format_dt(exp, 'R')}"),), WARN)
             return web.Response(text="DENIED|KEY EXPIRED")
         raw_product = (form.get("product") or "").strip().lower()
         # "any" — the launcher discovering which macro this key is for (login flow,
@@ -887,9 +887,9 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
         asked = DEFAULT_MACRO if discovering else (clean_macro(raw_product) or DEFAULT_MACRO)
         if not discovering and row["macro"] and row["macro"] != asked:
             await log_event(row["id"], "activation_denied", f"wrong macro: {asked}")
-            await self.key_log(row, "🎮 Key used in the wrong macro", who,
-                               (("🔑 Key is for", macro_label(row["macro"])), ("🖥️ Tried in", macro_label(asked)),
-                                ("❌ Refused", "Wrong macro")), WARN)
+            await self.key_log(row, f"{E.game} Key used in the wrong macro", who,
+                               ((f"{E.key} Key is for", macro_label(row["macro"])), (f"{E.screen} Tried in", macro_label(asked)),
+                                (f"{E.cross} Refused", "Wrong macro")), WARN)
             return web.Response(text=f"DENIED|THIS KEY IS FOR THE {macro_name(row['macro']).upper()} MACRO")
         asked = row["macro"] or "all"   # the real macro this key unlocks ("all" = works in every macro)
         # Device lock: the first PC to log in binds the key to its hardware ID. Any other PC is refused
@@ -912,16 +912,16 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
             if link is None:
                 return web.Response(text="DENIED|LINK YOUR DISCORD ACCOUNT FIRST")
             if not self.in_server(link["user_id"]):
-                await self.key_log(row, "🚪 Key tried by someone not in the server", link["user_id"], (("❌ Refused", "Not in the server"),), WARN,
-                                   who_label="🕵️ Tried by", name=link["username"])
+                await self.key_log(row, f"{E.door} Key tried by someone not in the server", link["user_id"], ((f"{E.cross} Refused", "Not in the server"),), WARN,
+                                   who_label=f"{E.search} Tried by", name=link["username"])
                 return web.Response(text=f"DENIED|JOIN {INVITE.upper()} FIRST")
             if owner and owner != link["user_id"]:
                 await log_event(row["id"], "activation_denied", f"used by other account {link['user_id']}")
-                await self.key_log(row, "🚫 Someone tried to use another person's key", link["user_id"],
-                                   (("🔐 Key owner", f"<@{owner}> · `{owner}`"),
-                                    ("❌ Refused", "Possible key sharing"),
-                                    ("🔎 Look up", f"`/key list member:` → pick <@{link['user_id']}> to see their own keys")),
-                                   DANGER, who_label="🕵️ Tried by", name=link["username"])
+                await self.key_log(row, f"{E.ban} Someone tried to use another person's key", link["user_id"],
+                                   ((f"{E.lock} Key owner", f"<@{owner}> · `{owner}`"),
+                                    (f"{E.cross} Refused", "Possible key sharing"),
+                                    (f"{E.search} Look up", f"`/key list member:` → pick <@{link['user_id']}> to see their own keys")),
+                                   DANGER, who_label=f"{E.search} Tried by", name=link["username"])
                 return web.Response(text="DENIED|THIS KEY BELONGS TO ANOTHER DISCORD ACCOUNT")
             if not owner:  # first use locks the key to this account
                 await db.execute("UPDATE licenses SET user_id = ? WHERE id = ? AND user_id IS NULL", (link["user_id"], row["id"]))
@@ -939,11 +939,11 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
         if first or self.should_log_login(row["id"], who):
             fresh = await db.fetch_one("SELECT * FROM licenses WHERE id = ?", (row["id"],))
             await self.key_log(
-                fresh, "🟢 Key activated (first login)" if first else "🔓 Macro login", who,
-                (("🎮 Macro", macro_label(asked)), ("⏳ Length", expiry_text(fresh)), ("🔢 Logins", f"{fresh['activations']:,}"),
-                 ("🔗 Locked to", "this account (first use)" if first_link else None),
-                 ("🖥️ Device locked", f"`{fresh['hwid']}`" if first_device else None),
-                 ("🧾 Order", f"`{fresh['order_code']}`" if fresh["order_code"] else None)),
+                fresh, "🟢 Key activated (first login)" if first else f"{E.unlock} Macro login", who,
+                ((f"{E.game} Macro", macro_label(asked)), (f"{E.hourglass} Length", expiry_text(fresh)), (f"{E.hashtag} Logins", f"{fresh['activations']:,}"),
+                 (f"{E.link} Locked to", "this account (first use)" if first_link else None),
+                 (f"{E.screen} Device locked", f"`{fresh['hwid']}`" if first_device else None),
+                 (f"{E.receipt} Order", f"`{fresh['order_code']}`" if fresh["order_code"] else None)),
                 SUCCESS)
         return web.Response(text=f"OK|LICENSE VALID|{asked}")
 
@@ -985,7 +985,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
             return web.Response(text="OK")
         if row:
             await log_event(row["id"], "logged_out", reason)
-            await self.key_log(row, "🔒 Logged out of the macro", row["user_id"], (("❌ Reason", reason.capitalize()),), WARN)
+            await self.key_log(row, f"{E.lock} Logged out of the macro", row["user_id"], ((f"{E.cross} Reason", reason.capitalize()),), WARN)
         return web.Response(text=f"REVOKED|{reason}")
 
     async def handle_report(self, request: web.Request) -> web.Response:
@@ -1027,15 +1027,15 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
             guild = self.log_guild(row)
             if guild is not None:
                 embed = ui.card(
-                    "🚨 Copying detected — staff review",
-                    ui.kv(("👤 Owner", f"<@{who}> · `{who}`" if who else "No Discord account linked"),
-                          ("🔑 Key", f"`{row['code']}`"),
-                          ("🎮 Macro", macro_label(asked)),
-                          ("🖥️ Device (HWID)", f"`{hwid}`"),
-                          ("🔢 Copies on disk", f"{count:,} beyond the running one"),
-                          ("🗑️ In the Recycle Bin", f"{bin_count:,}" if bin_count else None),
-                          ("📂 Every copy", where),
-                          ("ℹ️ Action", "**Disable key (ToS)** turns the key off, DMs the owner about the Terms of Service, and every "
+                    f"{E.alert} Copying detected — staff review",
+                    ui.kv((f"{E.user} Owner", f"<@{who}> · `{who}`" if who else "No Discord account linked"),
+                          (f"{E.key} Key", f"`{row['code']}`"),
+                          (f"{E.game} Macro", macro_label(asked)),
+                          (f"{E.screen} Device (HWID)", f"`{hwid}`"),
+                          (f"{E.hashtag} Copies on disk", f"{count:,} beyond the running one"),
+                          (f"{E.trash} In the Recycle Bin", f"{bin_count:,}" if bin_count else None),
+                          (f"{E.folder} Every copy", where),
+                          (f"{E.info} Action", "**Disable key (ToS)** turns the key off, DMs the owner about the Terms of Service, and every "
                            "copy on that PC self-destructs on its next check. **Dismiss** leaves the key active.")),
                     color=DANGER, guild=guild, section="Keys", timestamp=True)
                 await send_log(guild, "keys", embed, view=copy_review_view(row["id"]))
@@ -1043,13 +1043,13 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
 
         # Only Recycle-Bin copies, or the key is already disabled: a passive note, no action buttons.
         await self.key_log(
-            row, "📑 Extra copies of the file found on a PC", who,
-            (("🎮 Macro", macro_label(asked)),
-             ("🖥️ Device (HWID)", f"`{hwid}`"),
-             ("🔢 Copies on disk", f"{count:,} beyond the running one"),
-             ("🗑️ In the Recycle Bin", f"{bin_count:,}" if bin_count else None),
-             ("📂 Every copy", where),
-             ("ℹ️ Note", "The macro found copies of its file. Use `/key disable` to remove every copy on that PC.")),
+            row, f"{E.file} Extra copies of the file found on a PC", who,
+            ((f"{E.game} Macro", macro_label(asked)),
+             (f"{E.screen} Device (HWID)", f"`{hwid}`"),
+             (f"{E.hashtag} Copies on disk", f"{count:,} beyond the running one"),
+             (f"{E.trash} In the Recycle Bin", f"{bin_count:,}" if bin_count else None),
+             (f"{E.folder} Every copy", where),
+             (f"{E.info} Note", "The macro found copies of its file. Use `/key disable` to remove every copy on that PC.")),
             WARN)
         return web.Response(text="OK")
 
@@ -1078,7 +1078,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
         dm = ""
         if member:
             try:
-                embed = ui.card("🔑 Your macro key" + ("s" if count > 1 else ""),
+                embed = ui.card(f"{E.key} Your macro key" + ("s" if count > 1 else ""),
                                 "\n".join(f"```{c}```" for c in codes) + f"\n**For** · {which}\n**Length** · {length}\n"
                                 f"Paste it into the {macro_name(macro)} macro's login screen — "
                                 f"or just press **Launch** below if you already have XZX Loader set up.",
@@ -1099,14 +1099,14 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
                     custom_id=f"launch_xzx:{member.id}",
                 ))
                 await member.send(view=embed.with_view(key_view))
-                dm = f"\n📬 Sent to {member.mention} by DM."
+                dm = f"\n{E.mail} Sent to {member.mention} by DM."
             except discord.HTTPException:
-                dm = f"\n📪 Couldn't DM {member.mention} (DMs closed). Give them the key yourself."
-        await emit(interaction.guild, "keys", "🔑 Keys generated",
+                dm = f"\n{E.mail} Couldn't DM {member.mention} (DMs closed). Give them the key yourself."
+        await emit(interaction.guild, "keys", f"{E.key} Keys generated",
                    ui.kv(("Macro", which), ("Count", str(count)), ("Length", length), ("For", member.mention if member else None), ("By", interaction.user.mention), ("Note", note)),
                    SUCCESS, subject=member.id if member else None)
         body = "\n".join(f"`{c}`" for c in codes)
-        await interaction.followup.send(view=ui.card(f"🔑 {count} {macro_name(macro)} key{'s' if count > 1 else ''} made · {length}", body + dm, color=SUCCESS,
+        await interaction.followup.send(view=ui.card(f"{E.key} {count} {macro_name(macro)} key{'s' if count > 1 else ''} made · {length}", body + dm, color=SUCCESS,
                                                       guild=interaction.guild, section="Keys"), ephemeral=True)
 
     @app_commands.command(description="Look up a key")
@@ -1145,7 +1145,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
                  f"{('<@' + str(r['user_id']) + '>') if r['user_id'] else (r['owner_name'] or 'unassigned')} · {expiry_text(r)}" for r in rows[:20]]
         more = f"\n…and {len(rows) - 20} more" if len(rows) > 20 else ""
         await interaction.response.send_message(
-            view=ui.card("🔑 Keys", "\n".join(lines) + more, guild=interaction.guild,
+            view=ui.card(f"{E.key} Keys", "\n".join(lines) + more, guild=interaction.guild,
                           footer=f"{total['c']:,} keys in total · {total['a']:,} enabled" + (f"\n{per_macro}" if per_macro else "")),
             ephemeral=True)
 
@@ -1175,7 +1175,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
             last = parse_time(r["last_seen"])
             seen = discord.utils.format_dt(last, "R") if last else "never"
             return (f"{status_text(r)[:1]} `{r['code']}` · **{macro_label(r['macro'])}**\n"
-                    f" {who} · 🖥️ {dev} · ⏳ {expiry_text(r)} · 👁️ {seen}")
+                    f" {who} · {E.screen} {dev} · {E.hourglass} {expiry_text(r)} · 👁️ {seen}")
 
         # page the lines so each embed stays under Discord's description limit
         pages, buf, size = [], [], 0
@@ -1195,7 +1195,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
 
         shown = pages[:12]
         for i, pg in enumerate(shown):
-            emb = ui.card(f"🔑 All keys ({i + 1}/{len(shown)})", pg, guild=interaction.guild, footer=foot)
+            emb = ui.card(f"{E.key} All keys ({i + 1}/{len(shown)})", pg, guild=interaction.guild, footer=foot)
             if i == 0:
                 await interaction.response.send_message(view=emb, ephemeral=True)
             else:
@@ -1214,13 +1214,13 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
         dm = ""
         if not active and row["user_id"]:       # auto-DM the owner that their key was turned off
             embed = ui.card(
-                "⛔ Your macro key was disabled",
+                f"{E.ban} Your macro key was disabled",
                 f"Your {macro_name(row['macro'])} key `{row['code']}` has been turned off and no longer works.\n\n"
                 "If you think this is a mistake, open a ticket in the server and we'll sort it out.",
                 color=DANGER, guild=interaction.guild, section="Keys")
             sent = await self.dm_owner(row["user_id"], embed)
-            dm = "\n📬 Owner notified by DM." if sent else "\n📪 Couldn't DM the owner (DMs closed or no account)."
-        await emit(interaction.guild, "keys", "🔑 Key enabled" if active else "⛔ Key disabled",
+            dm = f"\n{E.mail} Owner notified by DM." if sent else f"\n{E.mail} Couldn't DM the owner (DMs closed or no account)."
+        await emit(interaction.guild, "keys", f"{E.key} Key enabled" if active else f"{E.ban} Key disabled",
                    ui.kv(("Key", f"`{row['code']}`"), ("Owner", f"<@{row['user_id']}>" if row["user_id"] else None), ("By", interaction.user.mention)),
                    subject=row["user_id"])
         row = await find_license(code)
@@ -1246,12 +1246,12 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
         old = row["hwid"]
         await db.execute("UPDATE licenses SET hwid = NULL WHERE id = ?", (row["id"],))
         await log_event(row["id"], "device_reset", f"by {interaction.user.id}")
-        await emit(interaction.guild, "keys", "🖥️ Key unlocked from its device",
+        await emit(interaction.guild, "keys", f"{E.screen} Key unlocked from its device",
                    ui.kv(("Key", f"`{row['code']}`"), ("Was locked to", f"`{old}`" if old else "Not locked"), ("By", interaction.user.mention)),
                    subject=row["user_id"])
         row = await find_license(code)
         await interaction.response.send_message(
-            view=ui.card("🖥️ Device unlocked", f"`{row['code']}` can now be used on a new device. The next PC to log in will lock it.",
+            view=ui.card(f"{E.screen} Device unlocked", f"`{row['code']}` can now be used on a new device. The next PC to log in will lock it.",
                           color=SUCCESS, guild=interaction.guild, section="Keys"), ephemeral=True)
 
     @app_commands.command(description="Add days to a key (or make it lifetime)")
@@ -1284,7 +1284,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
         row = await find_license(code)
         await db.execute("UPDATE licenses SET macro = ? WHERE id = ?", (clean_macro(macro), row["id"]))
         await log_event(row["id"], "macro", macro_name(clean_macro(macro)))
-        await emit(interaction.guild, "keys", "🎮 Key macro changed",
+        await emit(interaction.guild, "keys", f"{E.game} Key macro changed",
                    ui.kv(("Key", f"`{row['code']}`"), ("From", macro_label(row["macro"])), ("To", macro_label(clean_macro(macro))),
                          ("By", interaction.user.mention)), subject=row["user_id"])
         row = await find_license(code)
@@ -1304,7 +1304,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
     async def delete(self, interaction: discord.Interaction, code: str):
         row = await find_license(code)
         await _delete_licenses([row])
-        await interaction.response.send_message(view=ui.card("🗑️ Key deleted", f"`{row['code']}` no longer exists.", color=SUCCESS), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.trash} Key deleted", f"`{row['code']}` no longer exists.", color=SUCCESS), ephemeral=True)
 
     @app_commands.command(description="Delete ALL of a member's keys at once (asks for confirmation first)")
     @app_commands.describe(member="Delete every key this member owns")
@@ -1317,7 +1317,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
         more = f"\n…and {len(rows) - 25} more" if len(rows) > 25 else ""
         view = ConfirmDeleteAllView(interaction.user.id, member, rows, self.bot)
         await interaction.response.send_message(
-            view=ui.card(f"⚠️ Delete all {len(rows)} key(s) for {member}?",
+            view=ui.card(f"{E.warn} Delete all {len(rows)} key(s) for {member}?",
                           lines + more + "\n\n**This cannot be undone.**", color=DANGER).with_view(view),
             ephemeral=True)
         view.message = await interaction.original_response()
@@ -1332,7 +1332,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
                if len(rows) > 25 else "")
         view = DeleteSelectView(interaction.user.id, member, rows, self.bot)
         await interaction.response.send_message(
-            view=ui.card(f"🔑 {member}'s keys", f"Pick which key(s) to delete from the dropdown below.{note}",
+            view=ui.card(f"{E.key} {member}'s keys", f"Pick which key(s) to delete from the dropdown below.{note}",
                           color=WARN).with_view(view),
             ephemeral=True)
         view.message = await interaction.original_response()
@@ -1374,7 +1374,7 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
             added += 1
         await log_event(None, "imported", f"{added} keys from {csv_file.filename}")
         await interaction.followup.send(
-            view=ui.card("📥 Keys imported", ui.kv(("Added", f"{added:,}"), ("Skipped (already here or blank)", f"{skipped:,}"))
+            view=ui.card(f"{E.inbox} Keys imported", ui.kv(("Added", f"{added:,}"), ("Skipped (already here or blank)", f"{skipped:,}"))
                           + "\n\nThose keys work in the macro straight away. Once you've checked, you can shut the old website down.",
                           color=SUCCESS, guild=interaction.guild, section="Keys"), ephemeral=True)
 
@@ -1387,24 +1387,24 @@ class Keys(commands.GroupCog, group_name="key", group_description="Macro license
             where = (f"The macro checks keys at:\n```{base}```\nIn the macro script set:\n"
                      f"```global LICENSE_API_URL := \"{base}\"```")
         else:
-            where = ("⚠️ I don't know my public web address yet. In Railway open this bot's service → **Settings → Networking → "
+            where = (f"{E.warn} I don't know my public web address yet. In Railway open this bot's service → **Settings → Networking → "
                      "Generate Domain**, redeploy, then run this again.")
         products = "\n".join(f"• **{p['name']}** · {length_label(p['license_days'])} key · {macro_label(p['license_macro'])}" for p in selling) \
             or "None yet. Use `/shop edit product:<name> license_key:<length>`."
-        embed = ui.card("🔑 Key system", where, guild=interaction.guild, section="Keys")
+        embed = ui.card(f"{E.key} Key system", where, guild=interaction.guild, section="Keys")
         embed.add_field(name="Products that give a key", value=products, inline=False)
         embed.add_field(name="Keys stored", value=f"{total['c']:,}", inline=True)
-        embed.add_field(name="🎮 Macros", value="\n".join(f"{macro_label(m)} · `product={m}`" for m in MACROS), inline=True)
+        embed.add_field(name=f"{E.game} Macros", value="\n".join(f"{macro_label(m)} · `product={m}`" for m in MACROS), inline=True)
         if self.linking_enabled():
-            linking = f"✅ On. People must link their Discord before a key works (remembered {LINK_DAYS} days)."
+            linking = f"{E.check} On. People must link their Discord before a key works (remembered {LINK_DAYS} days)."
         else:
             cb = redirect_uri() or "https://<your bot address>/auth/callback"
-            linking = ("⚠️ Off. To turn it on:\n"
+            linking = (f"{E.warn} Off. To turn it on:\n"
                        "**1.** Discord Developer Portal → your bot's app → **OAuth2**.\n"
                        f"**2.** Under **Redirects** add:\n```{cb}```"
                        "**3.** Copy the **Client Secret** (Reset Secret if it's hidden).\n"
                        "**4.** Railway → this bot → **Variables** → add `DISCORD_CLIENT_SECRET` = that secret, then redeploy.")
-        embed.add_field(name="🔗 Discord linking", value=linking, inline=False)
+        embed.add_field(name=f"{E.link} Discord linking", value=linking, inline=False)
         await interaction.response.send_message(view=embed, ephemeral=True)
 
 
@@ -1417,7 +1417,7 @@ class MyKeys(commands.Cog):
             raise UserError("You don't have any keys yet. Buy one from the shop with `/store`.")
         lines = [f"```{r['code']}```**{macro_label(r['macro'])}** · {status_text(r)} · {expiry_text(r)}" for r in rows]
         await interaction.response.send_message(
-            view=ui.card("🔑 Your keys", "\n".join(lines) + "\nPaste a key into the macro's login screen.", guild=interaction.guild, section="Keys"),
+            view=ui.card(f"{E.key} Your keys", "\n".join(lines) + "\nPaste a key into the macro's login screen.", guild=interaction.guild, section="Keys"),
             ephemeral=True)
 
 

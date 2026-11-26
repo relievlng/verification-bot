@@ -9,7 +9,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import ui
-from common import SUCCESS, WARN, UserError, check_can_send
+from common import SUCCESS, WARN, UserError, check_can_send, E
 from fileutil import human_size
 from logutil import emit
 
@@ -111,7 +111,7 @@ class CopyChannel(commands.Cog):
             lines = [f"[{attachments[i].filename}]({attachments[i].url}) · {human_size(attachments[i].size)}" for i in too_big]
             if header is None:
                 header = discord.Embed()
-            header.add_field(name="⚠️ Too big to copy", value="\n".join(lines)[:1000], inline=False)
+            header.add_field(name=f"{E.warn} Too big to copy", value="\n".join(lines)[:1000], inline=False)
             job.too_big += [attachments[i].filename for i in too_big]
         sent_any = False
         for index, group in enumerate(groups or [[]]):
@@ -146,11 +146,11 @@ class CopyChannel(commands.Cog):
         fraction = job.done / job.total if job.total else 1
         body = (
             f"{source.mention} → {destination.mention}\n\n`{ui.bar(fraction)}` **{job.done:,}** of **{job.total:,}** messages\n\n"
-            + ui.kv(("💬 Copied", f"{job.messages:,}"), ("📎 Files & videos", f"{job.files:,} ({human_size(job.bytes)})"), ("⏭️ Skipped", f"{job.skipped:,}" if job.skipped else None),
-                    ("❌ Failed", f"{job.failed:,}" if job.failed else None), ("⚠️ Too big to copy", f"{len(job.too_big):,} (linked instead)" if job.too_big else None))
+            + ui.kv((f"{E.chat} Copied", f"{job.messages:,}"), (f"{E.clip} Files & videos", f"{job.files:,} ({human_size(job.bytes)})"), ("⏭️ Skipped", f"{job.skipped:,}" if job.skipped else None),
+                    (f"{E.cross} Failed", f"{job.failed:,}" if job.failed else None), (f"{E.warn} Too big to copy", f"{len(job.too_big):,} (linked instead)" if job.too_big else None))
         )
         if finished:
-            title = "⏹️ Copy stopped" if job.cancelled else "✅ Copy finished"
+            title = "⏹️ Copy stopped" if job.cancelled else f"{E.check} Copy finished"
             if job.too_big:
                 body += "\n\nFiles over this server's upload limit were left as links to the originals: " + ", ".join(f"`{n}`" for n in job.too_big[:5]) + ("…" if len(job.too_big) > 5 else "")
         else:
@@ -236,7 +236,7 @@ class CopyChannel(commands.Cog):
         self.running[guild.id] = job
         view = StopView(job)
         try:
-            await destination.send(view=ui.card("📦 Copied channel", f"Messages from {source.mention}, oldest first.", footer=f"Copied by {interaction.user.display_name}"), allowed_mentions=discord.AllowedMentions.none())
+            await destination.send(view=ui.card(f"{E.package} Copied channel", f"Messages from {source.mention}, oldest first.", footer=f"Copied by {interaction.user.display_name}"), allowed_mentions=discord.AllowedMentions.none())
             last_update = 0.0
             for message in picked:
                 if job.cancelled:
@@ -258,7 +258,7 @@ class CopyChannel(commands.Cog):
             await interaction.channel.send(view=summary)
         await emit(
             guild, "server", "Channel copied",
-            ui.kv(("🛡️ By", interaction.user.mention), ("📤 From", source.mention), ("📥 To", destination.mention), ("💬 Messages", f"{job.messages:,}"), ("📎 Files", f"{job.files:,}")),
+            ui.kv((f"{E.shield} By", interaction.user.mention), (f"{E.outbox} From", source.mention), (f"{E.inbox} To", destination.mention), (f"{E.chat} Messages", f"{job.messages:,}"), (f"{E.clip} Files", f"{job.files:,}")),
         )
 
 

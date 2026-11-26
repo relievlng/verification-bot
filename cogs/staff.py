@@ -8,7 +8,7 @@ from discord.ext import commands
 
 import db
 import ui
-from common import LINK_RE, SUCCESS, WARN, UserError, is_staff, staff_ids
+from common import LINK_RE, SUCCESS, WARN, UserError, is_staff, staff_ids, E
 from logutil import emit
 
 log = logging.getLogger("verification-bot")
@@ -23,7 +23,7 @@ STAFF_TEXT = [("staff-chat", "Talk with the team"), ("staff-commands", "Run bot 
 STAFF_VOICE = ["Staff VC 1", "Staff VC 2", "Meeting room"]
 
 SECTIONS = {
-    "shop": ("🛒 Shop and orders", [
+    "shop": (f"{E.cart} Shop and orders", [
         ("/shop add · edit · remove · post", "Manage products and post their cards"),
         ("/shop orders · order <ID>", "Look up purchases and who processed them"),
         ("/shop createorder", "Log a sale made outside Stripe and send the buyer their file"),
@@ -32,14 +32,14 @@ SECTIONS = {
         ("/staff customer @member", "Everything about one customer"),
         ("/files add · list · send", "The file library"),
     ]),
-    "moderation": ("🛡️ Moderation", [
+    "moderation": (f"{E.shield} Moderation", [
         ("/mod warn · warnings · timeout · kick · ban", "Actions on members"),
         ("/staff notes · note", "Private notes on a member"),
         ("/staff history @member", "Warnings, notes and automod strikes together"),
         ("/automod status", "Automatic moderation rules"),
         ("/mod purge · slowmode · lock", "Channel control (lock has an unlock option)"),
     ]),
-    "giveaways": ("🎉 Giveaways", [
+    "giveaways": (f"{E.gift} Giveaways", [
         ("/giveaway start", "Start one, with invite, message, role and age requirements"),
         ("/giveaway edit · end · reroll · cancel", "Manage a running or finished giveaway"),
         ("/giveaway config", "The ping role and default channel"),
@@ -47,14 +47,14 @@ SECTIONS = {
         ("/messages check · top", "Message counts"),
         ("/pingroles send", "Ping a role with an announcement"),
     ]),
-    "content": ("📢 Posts and pages", [
+    "content": (f"{E.announce} Posts and pages", [
         ("/post new · edit", "Posts with a big photo, a GIF and a file"),
         ("/rules · /boosterperks · /premiumperks · /links", "Editable pages (post and edit)"),
         ("/installguides add · edit · post", "Installation guides by category"),
         ("/clothingpreviews add · edit · post", "Clothing previews"),
         ("/copychannel", "Copy a channel into another"),
     ]),
-    "logs": ("📋 Logs and tickets", [
+    "logs": (f"{E.clipboard} Logs and tickets", [
         ("/logs setup · history · stats", "Set up and search the logs"),
         ("/ticket list · stats · claim", "Support tickets"),
         ("/reviews leaderboard", "Staff and product ratings"),
@@ -94,10 +94,10 @@ async def hub_stats(guild_id: int) -> dict:
 async def hub_embed(guild: discord.Guild) -> discord.Embed:
     s = await hub_stats(guild.id)
     body = ui.kv(
-        ("🎫 Open tickets", f"{s['tickets']:,}"), ("🎉 Running giveaways", f"{s['giveaways']:,}"), ("🧾 Orders in the last 24h", f"{s['orders']:,}"),
-        ("⚠️ Orders needing attention", f"**{s['attention']:,}**" if s["attention"] else "None ✅"), ("🤖 Automod actions (24h)", f"{s['automod']:,}"), ("⚖️ Warnings (7 days)", f"{s['warnings']:,}"),
+        (f"{E.ticket} Open tickets", f"{s['tickets']:,}"), (f"{E.gift} Running giveaways", f"{s['giveaways']:,}"), (f"{E.receipt} Orders in the last 24h", f"{s['orders']:,}"),
+        (f"{E.warn} Orders needing attention", f"**{s['attention']:,}**" if s["attention"] else f"None {E.check}"), (f"{E.bot} Automod actions (24h)", f"{s['automod']:,}"), (f"{E.scale} Warnings (7 days)", f"{s['warnings']:,}"),
     ) + "\n\nPick a section below to see its commands."
-    return ui.card("🛠️ Staff hub", body, guild=guild, section="Staff")
+    return ui.card(f"{E.tool} Staff hub", body, guild=guild, section="Staff")
 
 
 async def section_embed(guild: discord.Guild, key: str) -> discord.Embed:
@@ -110,7 +110,7 @@ async def section_embed(guild: discord.Guild, key: str) -> discord.Embed:
             for r in rows:
                 why = ", ".join(x for x in ("DM failed" if not r["dm_sent"] else None, "file not delivered" if r["file_status"] == "failed" else None, "role not given" if r["role_status"] == "failed" else None) if x)
                 lines.append(f"`{r['code']}` · <@{r['user_id']}> · {r['product_name']} · {why}")
-            body += "\n\n**⚠️ Needs attention** (fix with `/shop resend`)\n" + "\n".join(lines)
+            body += f"\n\n**{E.warn} Needs attention** (fix with `/shop resend`)\n" + "\n".join(lines)
     return ui.card(title, body, guild=guild, section="Staff")
 
 
@@ -171,9 +171,9 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
             who = f" by <@{o['processed_by']}>" if o["processed_by"] else ""
             lines.append(f"`{o['code']}` · {o['product_name']} · {(o['amount'] if o['amount'] and not LINK_RE.search(o['amount']) else '—')} · {how}{who} · {discord.utils.format_dt(discord.utils.parse_time(o['created_at']), 'd')}")
         body = ui.kv(
-            ("👤 Member", f"{member.mention} (`{member.id}`)"), ("📅 Joined", discord.utils.format_dt(member.joined_at, "R") if member.joined_at else None),
-            ("🧾 Orders", f"**{len(orders)}**"), ("📥 Files received", f"{files:,}" if files else None), ("📨 Valid invites", f"{invites['valid']:,}"), ("💬 Messages", f"{messages:,}"),
-            ("🎫 Tickets", f"{tickets:,}" if tickets else None), ("⚖️ Warnings", f"**{warnings}**" if warnings else None), ("📝 Staff notes", f"{notes}" if notes else None),
+            (f"{E.user} Member", f"{member.mention} (`{member.id}`)"), (f"{E.calendar} Joined", discord.utils.format_dt(member.joined_at, "R") if member.joined_at else None),
+            (f"{E.receipt} Orders", f"**{len(orders)}**"), (f"{E.inbox} Files received", f"{files:,}" if files else None), (f"{E.mail} Valid invites", f"{invites['valid']:,}"), (f"{E.chat} Messages", f"{messages:,}"),
+            (f"{E.ticket} Tickets", f"{tickets:,}" if tickets else None), (f"{E.scale} Warnings", f"**{warnings}**" if warnings else None), (f"{E.note} Staff notes", f"{notes}" if notes else None),
         )
         if lines:
             body += "\n\n**Recent orders**\n" + "\n".join(lines)
@@ -186,17 +186,17 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
         gid = interaction.guild_id
         events = []
         for w in await db.fetch_all("SELECT * FROM warnings WHERE guild_id = ? AND user_id = ?", (gid, member.id)):
-            events.append((w["created_at"], f"⚖️ **Warning** `#{w['id']}` by <@{w['moderator_id']}>: {w['reason']}"))
+            events.append((w["created_at"], f"{E.scale} **Warning** `#{w['id']}` by <@{w['moderator_id']}>: {w['reason']}"))
         for n in await db.fetch_all("SELECT * FROM staff_notes WHERE guild_id = ? AND user_id = ?", (gid, member.id)):
-            events.append((n["created_at"], f"📝 **Note** `#{n['id']}` by <@{n['author_id']}>: {n['text']}"))
+            events.append((n["created_at"], f"{E.note} **Note** `#{n['id']}` by <@{n['author_id']}>: {n['text']}"))
         for h in await db.fetch_all("SELECT * FROM log_history WHERE guild_id = ? AND subject_id = ? AND category IN ('moderation', 'automod', 'staff')", (gid, member.id)):
             detail = " · ".join((h["summary"] or "").splitlines()[:3])[:110]
-            events.append((h["created_at"], f"🛡️ **{h['title']}**" + (f" · {detail}" if detail else "")))
+            events.append((h["created_at"], f"{E.shield} **{h['title']}**" + (f" · {detail}" if detail else "")))
         if not events:
-            raise UserError("Nothing on record for that member. They're clean. ✅")
+            raise UserError(f"Nothing on record for that member. They're clean. {E.check}")
         events.sort(key=lambda e: e[0], reverse=True)
         lines = [f"{discord.utils.format_dt(discord.utils.parse_time(t), 'd')} {text}" for t, text in events[:15]]
-        await interaction.response.send_message(view=ui.card(f"📚 Record: {member.display_name}", "\n".join(lines) + (f"\n\n*Showing 15 of {len(events)}.*" if len(events) > 15 else ""), guild=interaction.guild, section="Staff"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.book} Record: {member.display_name}", "\n".join(lines) + (f"\n\n*Showing 15 of {len(events)}.*" if len(events) > 15 else ""), guild=interaction.guild, section="Staff"), ephemeral=True)
 
     @app_commands.command(description="Add a private staff note to a member")
     @app_commands.describe(member="The member", text="The note (only staff can see it)")
@@ -204,8 +204,8 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
         await require_staff(interaction)
         await db.execute("INSERT INTO staff_notes (guild_id, user_id, author_id, text, created_at) VALUES (?, ?, ?, ?, ?)", (interaction.guild_id, member.id, interaction.user.id, text, discord.utils.utcnow().isoformat()))
         note_id = (await db.fetch_one("SELECT id FROM staff_notes ORDER BY id DESC LIMIT 1"))["id"]
-        await interaction.response.send_message(view=ui.card("📝 Note added", f"Note `#{note_id}` saved for {member.mention}. Only staff can see it.", color=SUCCESS), ephemeral=True)
-        await emit(interaction.guild, "staff", "Staff note added", ui.kv(("👤 Member", member.mention), ("📝 Note", text[:200]), ("🛡️ By", interaction.user.mention), ("🆔 Note", f"`#{note_id}`")), subject=member.id)
+        await interaction.response.send_message(view=ui.card(f"{E.note} Note added", f"Note `#{note_id}` saved for {member.mention}. Only staff can see it.", color=SUCCESS), ephemeral=True)
+        await emit(interaction.guild, "staff", "Staff note added", ui.kv((f"{E.user} Member", member.mention), (f"{E.note} Note", text[:200]), (f"{E.shield} By", interaction.user.mention), (f"{E.id} Note", f"`#{note_id}`")), subject=member.id)
 
     @app_commands.command(description="Read the staff notes on a member")
     @app_commands.describe(member="The member")
@@ -215,7 +215,7 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
         if not rows:
             raise UserError("There are no notes on that member.")
         lines = [f"`#{r['id']}` {discord.utils.format_dt(discord.utils.parse_time(r['created_at']), 'd')} · <@{r['author_id']}>\n　{r['text']}" for r in rows]
-        await interaction.response.send_message(view=ui.card(f"📝 Notes: {member.display_name}", "\n".join(lines), guild=interaction.guild, section="Staff"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.note} Notes: {member.display_name}", "\n".join(lines), guild=interaction.guild, section="Staff"), ephemeral=True)
 
     @app_commands.command(description="Delete a staff note by its number")
     @app_commands.describe(note_id="The note's number")
@@ -225,8 +225,8 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
         if not row:
             raise UserError("I can't find a note with that number.")
         await db.execute("DELETE FROM staff_notes WHERE id = ?", (note_id,))
-        await interaction.response.send_message(view=ui.card("🗑️ Note deleted", f"Note `#{note_id}` was removed.", color=SUCCESS), ephemeral=True)
-        await emit(interaction.guild, "staff", "Staff note deleted", ui.kv(("👤 Member", f"<@{row['user_id']}>"), ("🆔 Note", f"`#{note_id}`"), ("🛡️ By", interaction.user.mention)), subject=row["user_id"])
+        await interaction.response.send_message(view=ui.card(f"{E.trash} Note deleted", f"Note `#{note_id}` was removed.", color=SUCCESS), ephemeral=True)
+        await emit(interaction.guild, "staff", "Staff note deleted", ui.kv((f"{E.user} Member", f"<@{row['user_id']}>"), (f"{E.id} Note", f"`#{note_id}`"), (f"{E.shield} By", interaction.user.mention)), subject=row["user_id"])
 
     @app_commands.command(description="Give a member a role")
     @app_commands.describe(member="Who", role="Which role")
@@ -234,8 +234,8 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
     async def giverole(self, interaction: discord.Interaction, member: discord.Member, role: discord.Role):
         can_manage_role(interaction.guild, interaction.user, role)
         await member.add_roles(role, reason=f"By {interaction.user}")
-        await interaction.response.send_message(view=ui.card("✅ Role given", f"{member.mention} now has {role.mention}.", color=SUCCESS), ephemeral=True)
-        await emit(interaction.guild, "staff", "Role given by staff", ui.kv(("👤 Member", member.mention), ("🎭 Role", role.mention), ("🛡️ By", interaction.user.mention)), subject=member.id)
+        await interaction.response.send_message(view=ui.card(f"{E.check} Role given", f"{member.mention} now has {role.mention}.", color=SUCCESS), ephemeral=True)
+        await emit(interaction.guild, "staff", "Role given by staff", ui.kv((f"{E.user} Member", member.mention), (f"{E.roles} Role", role.mention), (f"{E.shield} By", interaction.user.mention)), subject=member.id)
 
     @app_commands.command(description="Take a role away from a member")
     @app_commands.describe(member="Who", role="Which role")
@@ -243,8 +243,8 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
     async def takerole(self, interaction: discord.Interaction, member: discord.Member, role: discord.Role):
         can_manage_role(interaction.guild, interaction.user, role)
         await member.remove_roles(role, reason=f"By {interaction.user}")
-        await interaction.response.send_message(view=ui.card("✅ Role removed", f"{member.mention} no longer has {role.mention}.", color=SUCCESS), ephemeral=True)
-        await emit(interaction.guild, "staff", "Role taken by staff", ui.kv(("👤 Member", member.mention), ("🎭 Role", role.mention), ("🛡️ By", interaction.user.mention)), subject=member.id)
+        await interaction.response.send_message(view=ui.card(f"{E.check} Role removed", f"{member.mention} no longer has {role.mention}.", color=SUCCESS), ephemeral=True)
+        await emit(interaction.guild, "staff", "Role taken by staff", ui.kv((f"{E.user} Member", member.mention), (f"{E.roles} Role", role.mention), (f"{E.shield} By", interaction.user.mention)), subject=member.id)
 
     @app_commands.command(description="Change (or clear) a member's nickname")
     @app_commands.describe(member="Who", nickname="The new nickname (leave blank to clear it)")
@@ -255,8 +255,8 @@ class Staff(commands.GroupCog, group_name="staff", group_description="Staff tool
             await member.edit(nick=nickname, reason=f"By {interaction.user}")
         except discord.HTTPException:
             raise UserError("I couldn't change that nickname. My role has to be above theirs.") from None
-        await interaction.response.send_message(view=ui.card("✅ Nickname updated", f"{member.mention}: **{before or '(none)'}** → **{nickname or '(none)'}**", color=SUCCESS), ephemeral=True)
-        await emit(interaction.guild, "staff", "Nickname changed by staff", ui.kv(("👤 Member", member.mention), ("⬅️ Before", before or "(none)"), ("➡️ After", nickname or "(none)"), ("🛡️ By", interaction.user.mention)), subject=member.id)
+        await interaction.response.send_message(view=ui.card(f"{E.check} Nickname updated", f"{member.mention}: **{before or '(none)'}** → **{nickname or '(none)'}**", color=SUCCESS), ephemeral=True)
+        await emit(interaction.guild, "staff", "Nickname changed by staff", ui.kv((f"{E.user} Member", member.mention), ("⬅️ Before", before or "(none)"), ("➡️ After", nickname or "(none)"), (f"{E.shield} By", interaction.user.mention)), subject=member.id)
 
 
 @app_commands.guild_only()
@@ -290,32 +290,32 @@ class StaffTools(commands.Cog):
             role: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True, connect=True, speak=True),
             guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, embed_links=True, attach_files=True, read_message_history=True, connect=True),
         }
-        category = next((c for c in guild.categories if c.name == "🔒 STAFF"), None)
+        category = next((c for c in guild.categories if c.name == f"{E.lock} STAFF"), None)
         if category is None:
             try:
-                category = await guild.create_category("🔒 STAFF", overwrites=overwrites, reason="Staff setup")
+                category = await guild.create_category(f"{E.lock} STAFF", overwrites=overwrites, reason="Staff setup")
             except discord.Forbidden:
                 raise UserError("I need the **Manage Channels** permission to build the staff area.") from None
         made = []
         for name, topic in STAFF_TEXT:
             if not any(c.name == name for c in category.channels):
                 await guild.create_text_channel(name, category=category, topic=topic, reason="Staff setup")
-                made.append(f"💬 #{name}")
+                made.append(f"{E.chat} #{name}")
         if voice:
             for name in STAFF_VOICE:
                 if not any(c.name == name for c in category.channels):
                     await guild.create_voice_channel(name, category=category, reason="Staff setup")
-                    made.append(f"🔊 {name}")
+                    made.append(f"{E.sound} {name}")
         cfg = await db.get_ticket_config(guild.id)
         linked = ""
         if cfg is not None and not staff_ids(cfg):
             await db.upsert_ticket_config(guild.id, staff_roles=str(role.id))
-            linked = f"\n\n🎫 {role.mention} is now also your ticket staff role."
-        body = (f"Only {role.mention}, you and me can see **🔒 STAFF**." + (" (I created the role.)" if created_role else "")
+            linked = f"\n\n{E.ticket} {role.mention} is now also your ticket staff role."
+        body = (f"Only {role.mention}, you and me can see **{E.lock} STAFF**." + (" (I created the role.)" if created_role else "")
                 + "\n\n" + ("**New channels**\n" + "\n".join(made) if made else "Everything already existed, nothing new was needed.") + linked
                 + "\n\nOpen the staff menu with `/staff menu`.")
-        await interaction.followup.send(view=ui.card("✅ Staff area ready", body, color=SUCCESS, guild=guild, section="Staff"), ephemeral=True)
-        await emit(guild, "staff", "Staff area set up", ui.kv(("🛡️ By", interaction.user.mention), ("🎭 Staff role", role.mention), ("➕ Created", f"{len(made)} channels")), subject=interaction.user.id)
+        await interaction.followup.send(view=ui.card(f"{E.check} Staff area ready", body, color=SUCCESS, guild=guild, section="Staff"), ephemeral=True)
+        await emit(guild, "staff", "Staff area set up", ui.kv((f"{E.shield} By", interaction.user.mention), (f"{E.roles} Staff role", role.mention), (f"{E.plus} Created", f"{len(made)} channels")), subject=interaction.user.id)
 
     @app_commands.default_permissions(manage_guild=True)
     @app_commands.command(description="Review roles, permissions and channels and list anything risky (changes nothing)")
@@ -326,11 +326,11 @@ class StaffTools(commands.Cog):
         problems, notes = 0, []
         me_perms = guild.me.guild_permissions
         missing = [p.replace("_", " ").title() for p in BOT_NEEDS if not getattr(me_perms, p, False)]
-        notes.append(("🤖 My permissions", "✅ I have everything I need." if not missing else "❌ I'm missing: " + ", ".join(missing) + ". Re-invite me with the full permissions."))
+        notes.append((f"{E.bot} My permissions", f"{E.check} I have everything I need." if not missing else f"{E.cross} I'm missing: " + ", ".join(missing) + ". Re-invite me with the full permissions."))
         problems += bool(missing)
         everyone = guild.default_role.permissions
         bad_everyone = [p.replace("_", " ").title() for p in POWERFUL if getattr(everyone, p, False)]
-        notes.append(("🌐 @everyone", "✅ No staff powers." if not bad_everyone else "❌ Everyone can: " + ", ".join(bad_everyone) + ". Turn these off in Server Settings → Roles → @everyone."))
+        notes.append((f"{E.globe} @everyone", f"{E.check} No staff powers." if not bad_everyone else f"{E.cross} Everyone can: " + ", ".join(bad_everyone) + ". Turn these off in Server Settings → Roles → @everyone."))
         problems += bool(bad_everyone)
         admins, powerful = [], []
         for role in guild.roles:
@@ -342,13 +342,13 @@ class StaffTools(commands.Cog):
                 admins.append(f"{role.mention} ({members})")
             elif perms:
                 powerful.append(f"{role.mention} ({members}): " + ", ".join(p.replace("_", " ") for p in perms[:3]))
-        notes.append(("👑 Administrator roles", ("⚠️ " + ", ".join(admins) + "\nOnly your owner role should have this.") if admins else "✅ None."))
+        notes.append((f"{E.crown} Administrator roles", ("⚠️ " + ", ".join(admins) + "\nOnly your owner role should have this.") if admins else f"{E.check} None."))
         problems += len(admins) > 1
-        notes.append(("🛡️ Staff-power roles", ("ℹ️ " + "\n".join(powerful[:8])) if powerful else "✅ None besides administrators."))
+        notes.append((f"{E.shield} Staff-power roles", ("ℹ️ " + "\n".join(powerful[:8])) if powerful else f"{E.check} None besides administrators."))
         above = [r.mention for r in guild.roles if not r.is_default() and not r.managed and r >= guild.me.top_role][:8]
-        notes.append(("📶 Roles above mine", ("⚠️ I can't hand these out: " + ", ".join(above) + "\nDrag my role higher if they should be given by the bot.") if above else "✅ Nothing above me that I need to manage."))
+        notes.append(("📶 Roles above mine", (f"{E.warn} I can't hand these out: " + ", ".join(above) + "\nDrag my role higher if they should be given by the bot.") if above else f"{E.check} Nothing above me that I need to manage."))
         exposed = [c.mention for c in guild.channels if any(w in c.name.lower() for w in STAFF_WORDS) and c.permissions_for(guild.default_role).view_channel][:8]
-        notes.append(("🔒 Staff-looking channels everyone can see", ("❌ " + ", ".join(exposed) + "\nMake them private (Edit channel → Permissions → @everyone → View Channel ❌).") if exposed else "✅ None found."))
+        notes.append((f"{E.lock} Staff-looking channels everyone can see", ("❌ " + ", ".join(exposed) + f"\nMake them private (Edit channel → Permissions → @everyone → View Channel {E.cross}).") if exposed else f"{E.check} None found."))
         problems += bool(exposed)
         sold = await db.fetch_all("SELECT name, role_id FROM products WHERE guild_id = ? AND role_id IS NOT NULL", (guild.id,))
         risky_sold = []
@@ -356,9 +356,9 @@ class StaffTools(commands.Cog):
             role = guild.get_role(p["role_id"])
             if role is not None and any(getattr(role.permissions, x, False) for x in POWERFUL):
                 risky_sold.append(f"**{p['name']}** gives {role.mention}")
-        notes.append(("🛒 Roles sold in the shop", ("❌ " + "; ".join(risky_sold) + "\nA product should never hand out staff powers.") if risky_sold else f"✅ {len(sold)} sold role(s), none with staff powers." if sold else "✅ No roles are sold."))
+        notes.append((f"{E.cart} Roles sold in the shop", ("❌ " + "; ".join(risky_sold) + "\nA product should never hand out staff powers.") if risky_sold else f"{E.check} {len(sold)} sold role(s), none with staff powers." if sold else f"{E.check} No roles are sold."))
         problems += bool(risky_sold)
-        embed = ui.card("🔍 Server audit", "\n\n".join(f"**{name}**\n{text}" for name, text in notes), guild=guild, section="Audit",
+        embed = ui.card(f"{E.search} Server audit", "\n\n".join(f"**{name}**\n{text}" for name, text in notes), guild=guild, section="Audit",
                         footer=("Nothing was changed. " + (f"{problems} thing(s) need attention." if problems else "All clear.")))
         await interaction.followup.send(view=embed, ephemeral=True)
 

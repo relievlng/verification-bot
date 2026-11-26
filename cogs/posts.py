@@ -13,7 +13,7 @@ from discord.ext import commands
 import db
 import ui
 from cogs.files import GetFileButton, file_autocomplete
-from common import COLOR, UserError, check_can_send, parse_color, v2
+from common import COLOR, UserError, check_can_send, parse_color, v2, E
 from logutil import emit
 
 log = logging.getLogger("verification-bot")
@@ -42,8 +42,7 @@ def unique_name(wanted: str, taken: set) -> str:
     return name
 
 
-MAX_EMBEDS = 10  # Discord's limit per message
-GALLERY_URL = "https://discord.com/"  # any fixed link: embeds sharing it render as one image grid
+MAX_EMBEDS = 10  # cap on gallery photos (Discord MediaGallery holds up to 10 items)
 
 
 def chunk_files(items: list, size_limit: int, per_message: int = 10) -> list[list]:
@@ -127,7 +126,7 @@ class Draft:
             return None
         card = ui.card(self.title, self.description, color=color, footer=self.footer)
         if has_file_field:
-            card.add_field(name="📎 File", value=f"`{self.file[0]}` · {human_size(self.file[2])}\nAttached to this post ⬇️", inline=False)
+            card.add_field(name=f"{E.clip} File", value=f"`{self.file[0]}` · {human_size(self.file[2])}\nAttached to this post ⬇️", inline=False)
         if images:
             card.add_images(images)  # main photo + gallery, one grid
         if gif_image:
@@ -201,10 +200,10 @@ class Draft:
 
 def describe_post(draft: Draft) -> list:
     return [
-        ("📝 Title", draft.title), ("📦 Pack", draft.pack), ("🖼️ Photo", draft.photo[0] if draft.photo else draft.photo_url),
-        ("🖼️ More photos", str(len(draft.more_photos)) if draft.more_photos else None), ("🎞️ GIF", draft.gif[0] if draft.gif else draft.gif_url),
-        ("📎 File", f"{draft.file[0]} ({human_size(draft.file[2])})" if draft.file else None), ("📥 Get-file button", draft.deliver[1] if draft.deliver else None),
-        ("🔗 Button", f"{draft.button[0]} → {draft.button[1]}" if draft.button else None), ("🔔 Pinged", " ".join(x for x in ({"everyone": "@everyone", "here": "@here"}.get(draft.mention_all), draft.ping.mention if draft.ping else None) if x) or None),
+        (f"{E.note} Title", draft.title), (f"{E.package} Pack", draft.pack), (f"{E.image} Photo", draft.photo[0] if draft.photo else draft.photo_url),
+        (f"{E.image} More photos", str(len(draft.more_photos)) if draft.more_photos else None), (f"{E.film} GIF", draft.gif[0] if draft.gif else draft.gif_url),
+        (f"{E.clip} File", f"{draft.file[0]} ({human_size(draft.file[2])})" if draft.file else None), (f"{E.inbox} Get-file button", draft.deliver[1] if draft.deliver else None),
+        (f"{E.link} Button", f"{draft.button[0]} → {draft.button[1]}" if draft.button else None), (f"{E.bell} Pinged", " ".join(x for x in ({"everyone": "@everyone", "here": "@here"}.get(draft.mention_all), draft.ping.mention if draft.ping else None) if x) or None),
     ]
 
 
@@ -247,7 +246,7 @@ async def publish_draft(guild: discord.Guild, user, draft: Draft) -> discord.Mes
     )
     await emit(
         guild, "posts", "Post published",
-        ui.kv(("🛡️ By", user.mention), ("📍 Channel", draft.channel.mention), *describe_post(draft), ("🔗 Link", f"[Jump to post]({message.jump_url})")), subject=user.id,
+        ui.kv((f"{E.shield} By", user.mention), (f"{E.pin} Channel", draft.channel.mention), *describe_post(draft), (f"{E.link} Link", f"[Jump to post]({message.jump_url})")), subject=user.id,
     )
     return message
 
@@ -262,12 +261,12 @@ class ConfirmView(discord.ui.View):
         if interaction.user.id != self.user_id:
             return await interaction.response.send_message("Only the person who made this post can confirm it.", ephemeral=True)
         self.stop()
-        await interaction.response.edit_message(content="⏳ Posting…", embeds=[], attachments=[], view=None)
+        await interaction.response.edit_message(content=f"{E.hourglass} Posting…", embeds=[], attachments=[], view=None)
         try:
             message = await publish_draft(interaction.guild, interaction.user, self.draft)
         except discord.HTTPException as e:
             return await interaction.edit_original_response(content=f"I couldn't post that: {e}. Check my permissions and the file sizes.")
-        await interaction.edit_original_response(content=f"✅ Posted in {self.draft.channel.mention}: {message.jump_url}\nEdit it later with `/post edit`.")
+        await interaction.edit_original_response(content=f"{E.check} Posted in {self.draft.channel.mention}: {message.jump_url}\nEdit it later with `/post edit`.")
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -423,18 +422,18 @@ class BulkConfirm(discord.ui.View):
             return await interaction.response.send_message("Only the person who started this can confirm it.", ephemeral=True)
         self.stop()
         todo = [d for d, skipped in self.drafts if not skipped]
-        await interaction.response.edit_message(content=f"⏳ Posting {len(todo)} pack(s)…", embed=None, view=None)
+        await interaction.response.edit_message(content=f"{E.hourglass} Posting {len(todo)} pack(s)…", embed=None, view=None)
         done, failed = [], []
         for draft in todo:
             try:
                 message = await publish_draft(interaction.guild, interaction.user, draft)
-                done.append(f"✅ **{draft.title}** → {message.jump_url}")
+                done.append(f"{E.check} **{draft.title}** → {message.jump_url}")
             except discord.HTTPException as e:
-                failed.append(f"❌ **{draft.title}**: {e}")
+                failed.append(f"{E.cross} **{draft.title}**: {e}")
             await asyncio.sleep(BULK_PAUSE)
         skipped = [f"⏭️ **{d.title}** (already posted in {d.channel.mention})" for d, was in self.drafts if was]
         body = "\n".join(done + failed + skipped) or "Nothing to post."
-        await interaction.edit_original_response(content=None, view=ui.card("📦 Packs posted" if not failed else "⚠️ Posted with problems", body[:4000], section="Posts"))
+        await interaction.edit_original_response(content=None, view=ui.card(f"{E.package} Packs posted" if not failed else f"{E.warn} Posted with problems", body[:4000], section="Posts"))
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -498,11 +497,11 @@ class Posts(commands.GroupCog, group_name="post", group_description="Posts with 
                       deliver=m.deliver, ping=m.ping, pack=m.pack, mention_all=m.mention_all)
         note = f"**Preview.** This is exactly what will be posted in {m.channel.mention}:"
         if m.ping or m.mention_all:
-            note += "\n🔔 It will ping " + " ".join(x for x in ({"everyone": "@everyone", "here": "@here"}.get(m.mention_all), m.ping.mention if m.ping else None) if x) + "."
+            note += f"\n{E.bell} It will ping " + " ".join(x for x in ({"everyone": "@everyone", "here": "@here"}.get(m.mention_all), m.ping.mention if m.ping else None) if x) + "."
         if m.deliver:
-            note += f"\n📥 It will have a **Get file** button that sends **{m.deliver[1]}** to members by DM."
+            note += f"\n{E.inbox} It will have a **Get file** button that sends **{m.deliver[1]}** to members by DM."
         if button:
-            note += f"\n🔗 It will have a **{button[0]}** button linking to {button[1]}"
+            note += f"\n{E.link} It will have a **{button[0]}** button linking to {button[1]}"
         layout = draft.layout()
         confirm = ConfirmView(interaction.user.id, draft)
         await interaction.followup.send(content=note, ephemeral=True, view=layout.with_view(confirm) if layout else confirm, files=draft.files())
@@ -539,9 +538,9 @@ class Posts(commands.GroupCog, group_name="post", group_description="Posts with 
         await db.execute("UPDATE posts SET title = ?, pack_name = ?, file_name = ?, data = ? WHERE id = ?", (draft.title, draft.pack, draft.file[0] if draft.file else None, draft.data(), row["id"]))
         await emit(
             interaction.guild, "posts", "Post edited",
-            ui.kv(("🛡️ By", interaction.user.mention), ("📍 Channel", f"<#{message.channel.id}>"), *describe_post(draft), ("🔗 Link", f"[Jump to post]({message.jump_url})")), subject=interaction.user.id,
+            ui.kv((f"{E.shield} By", interaction.user.mention), (f"{E.pin} Channel", f"<#{message.channel.id}>"), *describe_post(draft), (f"{E.link} Link", f"[Jump to post]({message.jump_url})")), subject=interaction.user.id,
         )
-        await interaction.followup.send(view=ui.card("✅ Post updated", f"[Jump to it]({message.jump_url})", color=COLOR), ephemeral=True)
+        await interaction.followup.send(view=ui.card(f"{E.check} Post updated", f"[Jump to it]({message.jump_url})", color=COLOR), ephemeral=True)
 
     @app_commands.command(name="new", description="Write a post: a card with a big photo, a GIF and a file at the bottom")
     @app_commands.describe(
@@ -552,7 +551,7 @@ class Posts(commands.GroupCog, group_name="post", group_description="Posts with 
         photo_url="Or a direct https link to the photo",
         gif_url="Or a direct https link to a GIF (must end in .gif)",
         color="Card colour as hex, e.g. #5865F2 (default: black)",
-        library_file="A stored file (see /files add) that a 📥 Get file button sends to members by DM",
+        library_file=f"A stored file (see /files add) that a {E.inbox} Get file button sends to members by DM",
         ping="A role to ping with the post, e.g. your New ReShades role",
         mention="Ping @everyone or @here (needs the Mention Everyone permission)",
         pack_name="What this is, e.g. 14K Triad clothing pack (shown in the logs)",
@@ -642,12 +641,12 @@ class Posts(commands.GroupCog, group_name="post", group_description="Posts with 
         drafts, problems = await parse_bulk(interaction.guild, await file.read())
         if problems:
             shown = "\n".join(f"• {p}" for p in problems[:15]) + (f"\n…and {len(problems) - 15} more." if len(problems) > 15 else "")
-            return await interaction.followup.send(view=ui.card("❌ Nothing was posted", f"Fix these in your file and try again:\n\n{shown}", section="Posts"), ephemeral=True)
-        lines = [f"{'⏭️' if skipped else '📦'} **{d.title}** → {d.channel.mention}" + (" · already posted, will be skipped" if skipped else "") + (f" · 📥 {d.deliver[1]}" if d.deliver else "")
-                 + (" · 🔔" if (d.ping or d.mention_all) else "") for d, skipped in drafts]
+            return await interaction.followup.send(view=ui.card(f"{E.cross} Nothing was posted", f"Fix these in your file and try again:\n\n{shown}", section="Posts"), ephemeral=True)
+        lines = [f"{'⏭️' if skipped else '📦'} **{d.title}** → {d.channel.mention}" + (" · already posted, will be skipped" if skipped else "") + (f" · {E.inbox} {d.deliver[1]}" if d.deliver else "")
+                 + (f" · {E.bell}" if (d.ping or d.mention_all) else "") for d, skipped in drafts]
         todo = sum(1 for _, skipped in drafts if not skipped)
         await interaction.followup.send(
-            view=ui.card(f"📦 Ready to post {todo} pack(s)", "\n".join(lines)[:4000] + "\n\nEverything checked out. Each post is recorded and logged.", section="Posts").with_view(BulkConfirm(self, interaction.user.id, drafts)),
+            view=ui.card(f"{E.package} Ready to post {todo} pack(s)", "\n".join(lines)[:4000] + "\n\nEverything checked out. Each post is recorded and logged.", section="Posts").with_view(BulkConfirm(self, interaction.user.id, drafts)),
             ephemeral=True)
 
     @app_commands.command(description="Get an example JSON file for /post bulk")
@@ -666,8 +665,8 @@ class Posts(commands.GroupCog, group_name="post", group_description="Posts with 
         if not rows:
             raise UserError("No posts yet. Make one with `/post new`.")
         lines = [f"[{r['title'] or 'Untitled'}](https://discord.com/channels/{interaction.guild_id}/{r['channel_id']}/{r['message_id']}) · <#{r['channel_id']}> · <@{r['author_id']}>"
-                 + (f" · 📦 {r['pack_name']}" if r["pack_name"] else "") + (f" · 📎 {r['file_name']}" if r["file_name"] else "") for r in rows]
-        await interaction.response.send_message(view=ui.card("📢 Posts", "\n".join(lines), guild=interaction.guild, section="Posts"), ephemeral=True)
+                 + (f" · {E.package} {r['pack_name']}" if r["pack_name"] else "") + (f" · {E.clip} {r['file_name']}" if r["file_name"] else "") for r in rows]
+        await interaction.response.send_message(view=ui.card(f"{E.announce} Posts", "\n".join(lines), guild=interaction.guild, section="Posts"), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

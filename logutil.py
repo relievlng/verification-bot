@@ -5,7 +5,7 @@ from datetime import timedelta
 
 import db
 import ui
-from common import ACCENT, COLOR, DANGER, INFO, SUCCESS, WARN
+from common import ACCENT, COLOR, DANGER, INFO, SUCCESS, WARN, E
 
 CATEGORIES = {
     "verification": "Verification events",
@@ -43,36 +43,36 @@ CATEGORIES = {
 
 # Layout used by "Create log channels": one private channel per category, fully separated.
 LOG_CHANNELS = {
-    "verification": ("✅・verify-logs", "Verification attempts, passes and lockdown", ["verification"]),
-    "join": ("👋・join-logs", "Members joining", ["join"]),
-    "leave": ("🚪・leave-logs", "Members leaving", ["leave"]),
-    "message_edit": ("✏️・edit-logs", "Edited messages", ["message_edit"]),
-    "message_delete": ("🗑️・delete-logs", "Deleted messages", ["message_delete"]),
-    "role_create": ("🎭・role-created-logs", "Roles created", ["role_create"]),
-    "role_delete": ("🎭・role-deleted-logs", "Roles deleted", ["role_delete"]),
-    "role_update": ("🎭・role-updated-logs", "Roles edited, or given to / taken from a member", ["role_update"]),
-    "ban": ("🔨・ban-logs", "Bans and unbans", ["ban"]),
+    "verification": (f"{E.check}・verify-logs", "Verification attempts, passes and lockdown", ["verification"]),
+    "join": (f"{E.wave}・join-logs", "Members joining", ["join"]),
+    "leave": (f"{E.door}・leave-logs", "Members leaving", ["leave"]),
+    "message_edit": (f"{E.edit}・edit-logs", "Edited messages", ["message_edit"]),
+    "message_delete": (f"{E.trash}・delete-logs", "Deleted messages", ["message_delete"]),
+    "role_create": (f"{E.roles}・role-created-logs", "Roles created", ["role_create"]),
+    "role_delete": (f"{E.roles}・role-deleted-logs", "Roles deleted", ["role_delete"]),
+    "role_update": (f"{E.roles}・role-updated-logs", "Roles edited, or given to / taken from a member", ["role_update"]),
+    "ban": (f"{E.tool}・ban-logs", "Bans and unbans", ["ban"]),
     "kick": ("👢・kick-logs", "Kicks", ["kick"]),
-    "timeout": ("⏳・timeout-logs", "Timeouts", ["timeout"]),
-    "warn": ("⚠️・warn-logs", "Warnings", ["warn"]),
-    "channel_create": ("📁・channel-created-logs", "Channels created", ["channel_create"]),
-    "channel_delete": ("📁・channel-deleted-logs", "Channels deleted", ["channel_delete"]),
-    "channel_update": ("📁・channel-updated-logs", "Channels edited, locked or slowed", ["channel_update"]),
-    "nicknames": ("✏️・name-logs", "Nickname and username changes", ["nicknames"]),
-    "voice": ("🔊・voice-logs", "Voice channel activity", ["voice"]),
-    "server": ("⚙️・server-logs", "Server settings and emoji changes", ["server"]),
-    "shop": ("🛒・shop-logs", "Shop purchases", ["shop"]),
-    "tickets": ("🎫・ticket-logs", "Support tickets", ["tickets"]),
-    "giveaways": ("🎉・giveaway-logs", "Giveaways", ["giveaways"]),
-    "invites": ("📨・invite-logs", "Invites created, deleted and used", ["invites"]),
-    "files": ("📥・file-logs", "File downloads", ["files"]),
-    "automod": ("🤖・automod-logs", "Automod actions", ["automod"]),
-    "posts": ("📢・post-logs", "Posts and packs", ["posts"]),
-    "staff": ("🛠️・staff-logs", "Staff actions", ["staff"]),
+    "timeout": (f"{E.hourglass}・timeout-logs", "Timeouts", ["timeout"]),
+    "warn": (f"{E.warn}・warn-logs", "Warnings", ["warn"]),
+    "channel_create": (f"{E.folder}・channel-created-logs", "Channels created", ["channel_create"]),
+    "channel_delete": (f"{E.folder}・channel-deleted-logs", "Channels deleted", ["channel_delete"]),
+    "channel_update": (f"{E.folder}・channel-updated-logs", "Channels edited, locked or slowed", ["channel_update"]),
+    "nicknames": (f"{E.edit}・name-logs", "Nickname and username changes", ["nicknames"]),
+    "voice": (f"{E.sound}・voice-logs", "Voice channel activity", ["voice"]),
+    "server": (f"{E.gear}・server-logs", "Server settings and emoji changes", ["server"]),
+    "shop": (f"{E.cart}・shop-logs", "Shop purchases", ["shop"]),
+    "tickets": (f"{E.ticket}・ticket-logs", "Support tickets", ["tickets"]),
+    "giveaways": (f"{E.gift}・giveaway-logs", "Giveaways", ["giveaways"]),
+    "invites": (f"{E.mail}・invite-logs", "Invites created, deleted and used", ["invites"]),
+    "files": (f"{E.inbox}・file-logs", "File downloads", ["files"]),
+    "automod": (f"{E.bot}・automod-logs", "Automod actions", ["automod"]),
+    "posts": (f"{E.announce}・post-logs", "Posts and packs", ["posts"]),
+    "staff": (f"{E.tool}・staff-logs", "Staff actions", ["staff"]),
     "commands": ("⌨️・command-logs", "Every slash command anyone runs", ["commands"]),
-    "events": ("🗓️・event-logs", "Scheduled server events", ["events"]),
-    "keys": ("🔑・key-logs", "Macro key logins, refused keys and Discord links", ["keys"]),
-    "sharing": ("🚨・shared-key-logs", "Keys auto-disabled for being used on a second device", ["sharing"]),
+    "events": (f"{E.calendar}・event-logs", "Scheduled server events", ["events"]),
+    "keys": (f"{E.key}・key-logs", "Macro key logins, refused keys and Discord links", ["keys"]),
+    "sharing": (f"{E.alert}・shared-key-logs", "Keys auto-disabled for being used on a second device", ["sharing"]),
 }
 ESSENTIALS = {"join", "leave", "message_edit", "message_delete", "ban", "kick", "timeout", "warn", "verification", "tickets", "role_create", "role_delete", "role_update"}
 HISTORY_DAYS = 30
@@ -111,15 +111,15 @@ async def send_log(guild: discord.Guild, category: str, embed: "ui.CardView", vi
 
 
 CATEGORY_STYLE = {
-    "verification": ("✅ Verification", SUCCESS), "join": ("👋 Joins", SUCCESS), "leave": ("🚪 Leaves", DANGER),
-    "message_edit": ("✏️ Edits", WARN), "message_delete": ("🗑️ Deletes", WARN),
-    "role_create": ("🎭 Role created", SUCCESS), "role_delete": ("🎭 Role deleted", DANGER), "role_update": ("🎭 Role updated", ACCENT),
-    "ban": ("🔨 Bans", DANGER), "kick": ("👢 Kicks", WARN), "timeout": ("⏳ Timeouts", WARN), "warn": ("⚠️ Warnings", WARN),
-    "channel_create": ("📁 Channel created", SUCCESS), "channel_delete": ("📁 Channel deleted", DANGER), "channel_update": ("📁 Channel updated", INFO),
-    "nicknames": ("✏️ Names", INFO), "voice": ("🔊 Voice", ACCENT), "server": ("⚙️ Server", WARN),
-    "shop": ("🛒 Shop", SUCCESS), "tickets": ("🎫 Tickets", ACCENT), "giveaways": ("🎉 Giveaways", ACCENT), "invites": ("🔗 Invites", INFO), "files": ("📥 Files", INFO), "automod": ("🤖 Automod", WARN), "posts": ("📢 Posts", INFO), "staff": ("🛠️ Staff", INFO),
-    "commands": ("⌨️ Commands", INFO), "events": ("🗓️ Events", ACCENT), "keys": ("🔑 Keys", ACCENT),
-    "sharing": ("🚨 Shared key", DANGER),
+    "verification": (f"{E.check} Verification", SUCCESS), "join": (f"{E.wave} Joins", SUCCESS), "leave": (f"{E.door} Leaves", DANGER),
+    "message_edit": (f"{E.edit} Edits", WARN), "message_delete": (f"{E.trash} Deletes", WARN),
+    "role_create": (f"{E.roles} Role created", SUCCESS), "role_delete": (f"{E.roles} Role deleted", DANGER), "role_update": (f"{E.roles} Role updated", ACCENT),
+    "ban": (f"{E.tool} Bans", DANGER), "kick": ("👢 Kicks", WARN), "timeout": (f"{E.hourglass} Timeouts", WARN), "warn": (f"{E.warn} Warnings", WARN),
+    "channel_create": (f"{E.folder} Channel created", SUCCESS), "channel_delete": (f"{E.folder} Channel deleted", DANGER), "channel_update": (f"{E.folder} Channel updated", INFO),
+    "nicknames": (f"{E.edit} Names", INFO), "voice": (f"{E.sound} Voice", ACCENT), "server": (f"{E.gear} Server", WARN),
+    "shop": (f"{E.cart} Shop", SUCCESS), "tickets": (f"{E.ticket} Tickets", ACCENT), "giveaways": (f"{E.gift} Giveaways", ACCENT), "invites": (f"{E.link} Invites", INFO), "files": (f"{E.inbox} Files", INFO), "automod": (f"{E.bot} Automod", WARN), "posts": (f"{E.announce} Posts", INFO), "staff": (f"{E.tool} Staff", INFO),
+    "commands": ("⌨️ Commands", INFO), "events": (f"{E.calendar} Events", ACCENT), "keys": (f"{E.key} Keys", ACCENT),
+    "sharing": (f"{E.alert} Shared key", DANGER),
 }
 
 
@@ -145,13 +145,13 @@ async def emit(
     text = description or ""
     extras = []
     if actor is not None and "🛡️" not in text:
-        extras.append(f"**🛡️ Staff** · {actor.mention} (`{actor.id}`)")
+        extras.append(f"**{E.shield} Staff** · {actor.mention} (`{actor.id}`)")
     if "🆔" not in text:
         pairs = ([("member", subject)] if subject else []) + [(k, v) for k, v in ids if v is not None]
         if pairs:
-            extras.append("**🆔 IDs** · " + " · ".join(f"{k} `{v}`" for k, v in pairs))
+            extras.append(f"**{E.id} IDs** · " + " · ".join(f"{k} `{v}`" for k, v in pairs))
     if "🕒" not in text:
-        extras.append(f"**🕒 When** · {discord.utils.format_dt(discord.utils.utcnow(), 'f')}")
+        extras.append(f"**{E.clock} When** · {discord.utils.format_dt(discord.utils.utcnow(), 'f')}")
     description = (text + "\n" if text else "") + "\n".join(extras)
     embed = ui.card(
         title, clip(description, 3800) if description else None, color=color, author=author, thumbnail=thumbnail,
@@ -187,7 +187,7 @@ async def action_log(guild: discord.Guild, category: str, title: str, *, target,
     """A moderation-style log: the member, the staff member, the reason, the IDs and the time, always in the same order."""
     name = getattr(target, "display_name", None) or getattr(target, "name", None) or f"User {target.id}"
     mention = getattr(target, "mention", f"<@{target.id}>")
-    description = ui.kv(("👤 Member", f"{mention} (`{target.id}`)"), *lines, ("📝 Reason", reason or "None given"))
+    description = ui.kv((f"{E.user} Member", f"{mention} (`{target.id}`)"), *lines, (f"{E.note} Reason", reason or "None given"))
     avatar = getattr(getattr(target, "display_avatar", None), "url", None)
     await emit(guild, category, title, description, color, fields, author=(name, avatar) if avatar else (name,), subject=target.id, actor=actor, ids=ids)
 

@@ -8,7 +8,7 @@ from discord.ext import commands
 
 import db
 import ui
-from common import COLOR, INFO, UserError
+from common import COLOR, INFO, UserError, E
 from logutil import emit
 
 log = logging.getLogger("verification-bot")
@@ -43,13 +43,13 @@ class CategoryGifModal(discord.ui.Modal, title="🎬 Branding GIF"):
 
     async def on_submit(self, interaction: discord.Interaction):
         self.view_ref.gif_url = self.gif_url.value.strip() or None
-        self.view_ref.gif_btn.label = "🎬 GIF set ✅" if self.view_ref.gif_url else "🎬 Add branding GIF"
+        self.view_ref.gif_btn.label = "🎬 GIF set ✅" if self.view_ref.gif_url else f"{E.film} Add branding GIF"
         self.view_ref.gif_btn.style = discord.ButtonStyle.success if self.view_ref.gif_url else discord.ButtonStyle.secondary
         if interaction.message is not None:
             await interaction.response.edit_message(view=self.view_ref)
         else:
             await interaction.response.send_message(
-                "🎬 GIF saved — it'll be attached to auto-posted drops." if self.view_ref.gif_url else "GIF cleared.",
+                f"{E.film} GIF saved — it'll be attached to auto-posted drops." if self.view_ref.gif_url else "GIF cleared.",
                 ephemeral=True,
             )
 
@@ -122,7 +122,7 @@ class CategoryLinkView(discord.ui.View):
     async def _on_toggle_autopost(self, interaction: discord.Interaction):
         self.autopost_enabled = not self.autopost_enabled
         self.autopost_btn.style = discord.ButtonStyle.success if self.autopost_enabled else discord.ButtonStyle.secondary
-        self.autopost_btn.label = "✅ Auto-posting dropped files" if self.autopost_enabled else "📤 Also auto-post dropped files"
+        self.autopost_btn.label = "✅ Auto-posting dropped files" if self.autopost_enabled else f"{E.outbox} Also auto-post dropped files"
         await interaction.response.edit_message(view=self)
 
     async def _on_set_gif(self, interaction: discord.Interaction):
@@ -137,7 +137,7 @@ class CategoryLinkView(discord.ui.View):
     async def _on_confirm(self, interaction: discord.Interaction):
         for item in self.children:
             item.disabled = True
-        await interaction.response.edit_message(content="🔄 Linking and syncing…", view=self)
+        await interaction.response.edit_message(content=f"{E.refresh} Linking and syncing…", view=self)
 
         values = self.select.values
         category_ids = None if "__ALL__" in values else {int(v) for v in values if v.isdigit()}
@@ -151,7 +151,7 @@ class CategoryLinkView(discord.ui.View):
             if self.autopost_enabled:
                 wired = await self.cog._wire_autopost(self.target_guild, self.main_guild, category_ids, self.gif_url, self.invoker_id)
                 embed.add_field(
-                    name="📤 Auto-posting enabled",
+                    name=f"{E.outbox} Auto-posting enabled",
                     value=(
                         f"Files dropped in **{wired}** linked channel{'s' if wired != 1 else ''} here will also be stored and "
                         "auto-posted with a **Get file** button on the main server"
@@ -160,7 +160,7 @@ class CategoryLinkView(discord.ui.View):
                     inline=False,
                 )
         except UserError as e:
-            await interaction.edit_original_response(content=f"⚠️ {e}", view=None)
+            await interaction.edit_original_response(content=f"{E.warn} {e}", view=None)
             self.stop()
             return
         await interaction.edit_original_response(content=None, view=embed)
@@ -178,7 +178,7 @@ class CategoryLinkView(discord.ui.View):
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item) -> None:
         log.exception("Server-link category picker error", exc_info=error)
-        msg = f"⚠️ {error}" if isinstance(error, UserError) else "Something went wrong linking that. Try `/linkserver` again."
+        msg = f"{E.warn} {error}" if isinstance(error, UserError) else "Something went wrong linking that. Try `/linkserver` again."
         try:
             if interaction.response.is_done():
                 await interaction.edit_original_response(content=msg, embed=None, view=None)
@@ -192,14 +192,14 @@ class CategoryLinkView(discord.ui.View):
 
 @app_commands.guild_only()
 class ServerLink(commands.Cog):
-    """/linkserver: mirror a main server's channels into this (second, "vault") server, live. You pick which
+    f"""/linkserver: mirror a main server's channels into this (second, "vault") server, live. You pick which
     categories to mirror (or the whole server) from a dropdown; after the first catch-up sync, any channel
     created, renamed, moved or deleted on the main server automatically happens here too, scoped to whatever
     was picked — channels made directly here are never touched or copied back. CONTENT forwarding, though,
     goes both ways: a message posted in a mirrored vault channel is forwarded into the matching channel on
     the main server, and a message posted in a mirrored main-server channel is forwarded back into the
     matching vault channel too — each copy is tagged with who sent it and which server it came from. The same
-    picker also has an optional **📤 Also auto-post dropped files** toggle (with an optional **🎬 branding
+    picker also has an optional **{E.outbox} Also auto-post dropped files** toggle (with an optional **{E.film} branding
     GIF**) that additionally wires every mirrored channel as an /autoupload drop zone, so a file dropped in a
     vault channel is also stored and auto-posted with a Get-file button on the matching main-server channel."""
 
@@ -332,10 +332,10 @@ class ServerLink(commands.Cog):
         view = CategoryLinkView(self, interaction.user.id, main_guild, target_guild)
         view.message = await interaction.followup.send(
             f"Which parts of **{main_guild.name}** should this server mirror? Pick one or more categories below, "
-            "or **🌐 Mirror the whole server** for everything (including uncategorized channels).\n\n"
-            "**📤 Also auto-post dropped files** additionally wires each linked channel as an auto-upload drop "
+            f"or **{E.globe} Mirror the whole server** for everything (including uncategorized channels).\n\n"
+            f"**{E.outbox} Also auto-post dropped files** additionally wires each linked channel as an auto-upload drop "
             "zone — a file dropped here gets stored and auto-posted with a **Get file** button on the main "
-            "server, on top of the normal live message mirroring. **🎬 Add branding GIF** sets an optional GIF "
+            f"server, on top of the normal live message mirroring. **{E.film} Add branding GIF** sets an optional GIF "
             "shown on those auto-posts.",
             view=view, ephemeral=True,
         )
@@ -366,14 +366,14 @@ class ServerLink(commands.Cog):
             f"**{len(category_ids)}** selected categor{'y' if len(category_ids) == 1 else 'ies'}"
         )
         embed = simple(
-            "🔗 Server linked",
+            f"{E.link} Server linked",
             f"This server now mirrors {scope_text} from **{main_guild.name}**. Created **{created}** {noun} to catch up.\n\n"
             "From now on, channels created, renamed, moved or deleted within that scope on the main server automatically "
             "happen here too — one-way only, nothing made directly in this server is touched or copied back.",
             COLOR,
         )
-        await emit(target_guild, "server", "🔗 Server link set up", ui.kv(
-            ("🛡️ By", f"<@{invoker_id}>"), ("Main server", main_guild.name),
+        await emit(target_guild, "server", f"{E.link} Server link set up", ui.kv(
+            (f"{E.shield} By", f"<@{invoker_id}>"), ("Main server", main_guild.name),
             ("Scope", "Whole server" if category_ids is None else f"{len(category_ids)} categories"),
         ))
         return embed
@@ -440,7 +440,7 @@ class ServerLink(commands.Cog):
                 f" ({', '.join(names)})" if names else ""
             ) + "."
         await interaction.response.send_message(view=simple(
-            "🔗 Linked",
+            f"{E.link} Linked",
             f"Mirroring **{main_guild.name if main_guild else link['main_guild_id']}** live. "
             f"**{mapped}** channel(s)/category(s) tracked so far.\n{scope_line}",
             COLOR,
@@ -485,7 +485,7 @@ class ServerLink(commands.Cog):
             noun = "channel/category" if created == 1 else "channels/categories"
             text = (f"Caught up with **{main_guild.name}** ({scope_text}). Linked/created **{created}** new {noun} — "
                     "existing channels with matching names were reused, not duplicated.")
-        await interaction.followup.send(view=simple("🔄 Refreshed", text, COLOR), ephemeral=True)
+        await interaction.followup.send(view=simple(f"{E.refresh} Refreshed", text, COLOR), ephemeral=True)
 
     # --------------------------------------------------------- forwarding ----
 

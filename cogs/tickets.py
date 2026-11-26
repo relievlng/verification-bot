@@ -13,7 +13,7 @@ from discord.ext import commands, tasks
 
 import db
 import ui
-from common import ACCENT, COLOR, DANGER, INFO, LINK_RE, SUCCESS, WARN, UserError, check_can_send, is_staff, parse_color, reply, staff_ids, support_button, v2
+from common import ACCENT, COLOR, DANGER, INFO, LINK_RE, SUCCESS, WARN, UserError, check_can_send, is_staff, parse_color, reply, staff_ids, support_button, v2, E
 from cogs.reviews import ProductReviewButton, add_ticket_review_comment, post_ticket_review, product_channel_id, staff_channel_id
 from logutil import emit
 from macros import MACROS, macro_label, macro_name
@@ -82,7 +82,7 @@ def clean_emoji(text: Optional[str]) -> Optional[str]:
     if re.fullmatch(r"<a?:\w+:\d+>", text):
         return text
     if text.isascii() or len(text) > 8:
-        raise UserError("Use a real emoji for `emoji`, like 🛠️ or 🧾 (or a custom server emoji).")
+        raise UserError(f"Use a real emoji for `emoji`, like {E.tool} or {E.receipt} (or a custom server emoji).")
     return text
 
 
@@ -260,7 +260,7 @@ class RateButton(discord.ui.DynamicItem[discord.ui.Button], template=r"ticket:ra
 
         body = f"{ui.stars(self.rating)}  **{self.rating}/5** for ticket {number_label(t)}"
         if t["claimed_by"]:
-            body += f"\n🛡️ Handled by <@{t['claimed_by']}>"
+            body += f"\n{E.shield} Handled by <@{t['claimed_by']}>"
         if message:
             body += f"\n\nYour review is now live in <#{message.channel.id}>. You can add a comment below."
         view = discord.ui.View(timeout=None)
@@ -269,7 +269,7 @@ class RateButton(discord.ui.DynamicItem[discord.ui.Button], template=r"ticket:ra
             view.add_item(discord.ui.Button(style=discord.ButtonStyle.link, label="See your review", emoji="⭐", url=message.jump_url))
         if guild and product_channel_id(await db.get_review_settings(guild.id)):
             view.add_item(ProductReviewButton(guild.id))
-            body += "\n\n🛍️ **Bought something from us?** Tap **Review a product** to review it too."
+            body += f"\n\n{E.shop} **Bought something from us?** Tap **Review a product** to review it too."
         button = support_button(guild, cfg) if guild else None
         if button:
             view.add_item(button)
@@ -277,7 +277,7 @@ class RateButton(discord.ui.DynamicItem[discord.ui.Button], template=r"ticket:ra
         if guild:
             await emit(
                 guild, "tickets", "Ticket rated",
-                ui.kv(("🎫 Ticket", f"{number_label(t)} · {t['type_name']}"), ("⭐ Rating", f"{ui.stars(self.rating)} {self.rating}/5"), ("🛡️ Staff", f"<@{t['claimed_by']}>" if t["claimed_by"] else None)),
+                ui.kv((f"{E.ticket} Ticket", f"{number_label(t)} · {t['type_name']}"), (f"{E.star} Rating", f"{ui.stars(self.rating)} {self.rating}/5"), (f"{E.shield} Staff", f"<@{t['claimed_by']}>" if t["claimed_by"] else None)),
                 footer=f"Ticket {number_label(t)}",
             )
 
@@ -325,7 +325,7 @@ class CommentModal(discord.ui.Modal):
         if button:
             view.add_item(button)
         await interaction.response.edit_message(
-            view=ui.card("Comment added 💬", "Thanks! Your comment is now part of your review.", color=SUCCESS, guild=guild, section="Support").with_view(view)
+            view=ui.card(f"Comment added {E.chat}", "Thanks! Your comment is now part of your review.", color=SUCCESS, guild=guild, section="Support").with_view(view)
         )
 
 
@@ -375,7 +375,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         try:
             await coro
         except UserError as e:
-            await reply(interaction, view=simple("⚠️ Hold on", str(e), WARN))
+            await reply(interaction, view=simple(f"{E.warn} Hold on", str(e), WARN))
         except Exception:
             log.exception("Unexpected ticket error")
             await reply(interaction, view=simple("Something went wrong", "Please try again, or ask a moderator.", DANGER))
@@ -404,23 +404,23 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         emoji = f"{ttype['emoji']} " if ttype and ttype["emoji"] else ""
         p_emoji, p_label = PRIORITIES.get(t["priority"], PRIORITIES["normal"])
         if t["status"] != "open":
-            status = "🔒 Closed"
+            status = f"{E.lock} Closed"
         elif t["claimed_by"]:
-            status = f"🙋 Claimed by <@{t['claimed_by']}>"
+            status = f"{E.users} Claimed by <@{t['claimed_by']}>"
         else:
-            status = "⏳ Waiting for staff"
+            status = f"{E.hourglass} Waiting for staff"
         welcome = ttype["welcome"] if ttype and ttype["welcome"] else DEFAULT_WELCOME
         info = ui.kv(
-            ("👤 Opened by", f"<@{t['user_id']}>"), ("🎮 Macro", macro_label(t["macro"]) if "macro" in t.keys() and t["macro"] else None),
-            ("🚦 Priority", f"{p_emoji} {p_label}"), ("📍 Status", status),
-            ("📌 Subject", t["subject"]), ("🧾 Invoice ID", f"`{t['invoice_code']}`" if t["invoice_code"] else None),
+            (f"{E.user} Opened by", f"<@{t['user_id']}>"), (f"{E.game} Macro", macro_label(t["macro"]) if "macro" in t.keys() and t["macro"] else None),
+            ("🚦 Priority", f"{p_emoji} {p_label}"), (f"{E.pin} Status", status),
+            (f"{E.tack} Subject", t["subject"]), (f"{E.receipt} Invoice ID", f"`{t['invoice_code']}`" if t["invoice_code"] else None),
         )
         embed = ui.card(
-            f"🎫 Ticket {number_label(t)} · {emoji}{t['type_name']}", f"{welcome}\n\n{ui.DIVIDER}\n{info}",
+            f"{E.ticket} Ticket {number_label(t)} · {emoji}{t['type_name']}", f"{welcome}\n\n{ui.DIVIDER}\n{info}",
             color=DANGER if t["priority"] == "urgent" else ACCENT, footer="Use the buttons below · Staff commands: /ticket claim, priority, add, close",
         )
         if t["details"]:
-            embed.add_field(name="📝 Details", value=t["details"][:1000], inline=False)
+            embed.add_field(name=f"{E.note} Details", value=t["details"][:1000], inline=False)
         return embed
 
     async def refresh_controls(self, guild: discord.Guild, t) -> None:
@@ -477,7 +477,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
     def build_panel(self, guild: discord.Guild, cfg, types) -> tuple[discord.Embed, discord.ui.View]:
         types = self.open_types(types)
         color = int(cfg["panel_color"], 16) if cfg["panel_color"] else COLOR.value
-        embed = ui.card(cfg["panel_title"] or "🎫 Need help?", cfg["panel_text"] or "Open a private ticket and our team will get back to you as soon as they can.", color=color, section="Tickets")
+        embed = ui.card(cfg["panel_title"] or f"{E.ticket} Need help?", cfg["panel_text"] or "Open a private ticket and our team will get back to you as soon as they can.", color=color, section="Tickets")
         if len(types) > 1:
             embed.add_field(
                 name="Ticket types",
@@ -539,7 +539,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         elif len(vis) == 1:
             chosen = vis[0]
         if chosen is None:
-            return await reply(interaction, view=simple("🎫 Open a ticket", "What do you need help with?", INFO).with_view(ChooseTypeView(self, self.type_options(vis))))
+            return await reply(interaction, view=simple(f"{E.ticket} Open a ticket", "What do you need help with?", INFO).with_view(ChooseTypeView(self, self.type_options(vis))))
 
         if chosen["kind"] == "application" and not chosen["app_open"]:
             raise UserError(f"**{chosen['name']}s** are closed right now. Please check back later.")
@@ -550,7 +550,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             # applications aren't about a macro - go straight to the question form
             await interaction.response.send_modal(ApplicationModal(self, chosen))
             return
-        await reply(interaction, view=simple(f"🎫 {chosen['name']}", "Which macro do you need help with?", INFO).with_view(MacroPickView(self, chosen)))
+        await reply(interaction, view=simple(f"{E.ticket} {chosen['name']}", "Which macro do you need help with?", INFO).with_view(MacroPickView(self, chosen)))
         # Reset the dropdown so the same option can be picked again (best effort)
         if interaction.message is not None and interaction.message.id == cfg["panel_message_id"] and len(types) > 1:
             try:
@@ -630,15 +630,15 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             await channel.send(view=await self.invoice_embed(guild, member, invoice_code))
 
         if ttype["kind"] == "application" and details.strip():   # full answers, untruncated
-            await channel.send(view=ui.card(f"📋 {ttype['name']}", details[:4000], color=ACCENT, section="Tickets"))
+            await channel.send(view=ui.card(f"{E.clipboard} {ttype['name']}", details[:4000], color=ACCENT, section="Tickets"))
 
-        await emit(guild, "tickets", "🎫 Ticket opened", ui.kv(("👤 Opened by", f"{member.mention} (`{member.id}`)"), ("📍 Channel", channel.mention), ("🎫 Ticket", f"{number_label(t)} · {ttype['name']}"), ("🎮 Macro", macro_label(macro) if macro else None), ("📌 Subject", subject.strip()), ("🧾 Invoice", f"`{invoice_code}`" if invoice_code else None)), COLOR, subject=member.id, ids=(("ticket", number_label(t)), ("channel", channel.id)))
-        await interaction.followup.send(view=simple("✅ Ticket created", f"Head over to {channel.mention}. A staff member will be with you soon.", COLOR), ephemeral=True)
+        await emit(guild, "tickets", f"{E.ticket} Ticket opened", ui.kv((f"{E.user} Opened by", f"{member.mention} (`{member.id}`)"), (f"{E.pin} Channel", channel.mention), (f"{E.ticket} Ticket", f"{number_label(t)} · {ttype['name']}"), (f"{E.game} Macro", macro_label(macro) if macro else None), (f"{E.tack} Subject", subject.strip()), (f"{E.receipt} Invoice", f"`{invoice_code}`" if invoice_code else None)), COLOR, subject=member.id, ids=(("ticket", number_label(t)), ("channel", channel.id)))
+        await interaction.followup.send(view=simple(f"{E.check} Ticket created", f"Head over to {channel.mention}. A staff member will be with you soon.", COLOR), ephemeral=True)
 
     async def invoice_embed(self, guild: discord.Guild, member: discord.Member, code: str) -> discord.Embed:
         order = await db.fetch_one("SELECT * FROM orders WHERE guild_id = ? AND code = ?", (guild.id, code))
         if order is None:
-            return simple("❌ Invoice not found", f"There's no order with ID `{code}` in this server. Staff: please double-check it with the buyer.", DANGER)
+            return simple(f"{E.cross} Invoice not found", f"There's no order with ID `{code}` in this server. Staff: please double-check it with the buyer.", DANGER)
         embed = ui.card(color=COLOR if order["user_id"] == member.id else WARN, section="Tickets")
         if order["user_id"] == member.id:
             embed.title = "✅ Verified purchase"
@@ -652,7 +652,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         if order["source"] == "manual":
             embed.add_field(name="Created by", value="Staff (manual order)")
         if not order["livemode"]:
-            embed.set_footer(text="🧪 This was a test-mode payment")
+            embed.set_footer(text=f"{E.test} This was a test-mode payment")
         return embed
 
     async def on_close_button(self, interaction: discord.Interaction) -> None:
@@ -667,14 +667,14 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         cfg = await self.cfg_or_error(interaction.guild_id)
         if interaction.user.id != ticket["user_id"] and not is_staff(interaction.user, cfg):
             raise UserError("Only the ticket owner or staff can close this ticket.")
-        await reply(interaction, view=simple("🔒 Closing", "Saving the transcript and closing this ticket…", INFO))
+        await reply(interaction, view=simple(f"{E.lock} Closing", "Saving the transcript and closing this ticket…", INFO))
         await self.close_ticket(interaction.guild, ticket, interaction.user, reason)
 
     async def ticket_log(self, guild: discord.Guild, ticket, title: str, actor, *lines, color=None) -> None:
         """Log a staff action on a ticket in the standard shape: the ticket, who did it, the IDs and the time."""
         await emit(
             guild, "tickets", title,
-            ui.kv(("🎫 Ticket", f"{number_label(ticket)} · {ticket['type_name']}"), ("👤 Opened by", f"<@{ticket['user_id']}>"), ("📍 Channel", f"<#{ticket['channel_id']}>"), *lines),
+            ui.kv((f"{E.ticket} Ticket", f"{number_label(ticket)} · {ticket['type_name']}"), (f"{E.user} Opened by", f"<@{ticket['user_id']}>"), (f"{E.pin} Channel", f"<#{ticket['channel_id']}>"), *lines),
             color, actor=actor, subject=ticket["user_id"], ids=(("ticket", number_label(ticket)), ("channel", ticket["channel_id"])),
         )
 
@@ -691,7 +691,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         ticket = await db.fetch_one("SELECT * FROM tickets WHERE id = ?", (ticket["id"],))
         await self.refresh_controls(interaction.guild, ticket)
         await self.ticket_log(interaction.guild, ticket, "Ticket claimed", interaction.user)
-        await reply(interaction, view=simple("🙋 Ticket claimed", f"{interaction.user.mention} will be helping with this ticket.", COLOR), ephemeral=False)
+        await reply(interaction, view=simple(f"{E.users} Ticket claimed", f"{interaction.user.mention} will be helping with this ticket.", COLOR), ephemeral=False)
 
     async def build_transcript(self, guild: discord.Guild, channel: discord.TextChannel, ticket, closer_text: str = "") -> tuple[bytes, int]:
         messages = []
@@ -728,7 +728,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         closer_text = f"Closed by: {closer.id if closer else 'automatic'} · Reason: {reason or '-'}"
         if isinstance(channel, discord.TextChannel):
             try:
-                await channel.send(view=simple("🔒 Closing ticket", f"Saving the transcript. This channel will be deleted in {CLOSE_DELAY} seconds.", WARN))
+                await channel.send(view=simple(f"{E.lock} Closing ticket", f"Saving the transcript. This channel will be deleted in {CLOSE_DELAY} seconds.", WARN))
             except discord.HTTPException:
                 pass
             try:
@@ -738,7 +738,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
 
         number = number_label(ticket)
         filename = f"transcript-{ticket['number']:04d}.html"
-        summary = ui.card(f"🎫 Ticket {number} closed", color=WARN, section="Tickets", timestamp=True)
+        summary = ui.card(f"{E.ticket} Ticket {number} closed", color=WARN, section="Tickets", timestamp=True)
         summary.add_field(name="Opened by", value=f"<@{ticket['user_id']}>")
         summary.add_field(name="Type", value=ticket["type_name"])
         summary.add_field(name="Closed by", value=closer.mention if closer else "Automatic")
@@ -756,7 +756,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
                 except discord.HTTPException:
                     log.warning("Couldn't post the transcript for ticket %s", ticket["id"])
         elif not (cfg and cfg["transcript_channel_id"]):
-            await emit(guild, "tickets", f"🔒 Ticket {number} closed", ui.kv(("👤 Opened by", f"<@{ticket['user_id']}>"), ("🎫 Type", ticket["type_name"]), ("🙋 Claimed by", f"<@{ticket['claimed_by']}>" if ticket["claimed_by"] else None), ("📝 Reason", reason or "None given")), WARN, actor=closer, subject=ticket["user_id"], ids=(("ticket", number),))
+            await emit(guild, "tickets", f"{E.lock} Ticket {number} closed", ui.kv((f"{E.user} Opened by", f"<@{ticket['user_id']}>"), (f"{E.ticket} Type", ticket["type_name"]), (f"{E.users} Claimed by", f"<@{ticket['claimed_by']}>" if ticket["claimed_by"] else None), (f"{E.note} Reason", reason or "None given")), WARN, actor=closer, subject=ticket["user_id"], ids=(("ticket", number),))
 
         if cfg and cfg["dm_transcript"]:
             user = guild.get_member(ticket["user_id"])
@@ -768,18 +768,18 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             if user is not None:
                 rs = await db.get_review_settings(guild.id)
                 body = f"Thanks for contacting **{guild.name}**.\n\n" + ui.kv(
-                    ("🎫 Ticket", f"{number} · {ticket['type_name']}"),
-                    ("🛡️ Handled by", f"<@{ticket['claimed_by']}>" if ticket["claimed_by"] else None),
+                    (f"{E.ticket} Ticket", f"{number} · {ticket['type_name']}"),
+                    (f"{E.shield} Handled by", f"<@{ticket['claimed_by']}>" if ticket["claimed_by"] else None),
                     ("⏱️ Open for", fmt_duration((now - parse_iso(ticket["created_at"])).total_seconds())),
-                    ("📝 Reason", reason),
+                    (f"{E.note} Reason", reason),
                 )
                 staff_cid, product_cid = staff_channel_id(rs), product_channel_id(rs)
                 if cfg["ask_rating"]:
-                    body += (f"\n\n{ui.DIVIDER}\n🛡️ **Staff review** · How was our support? Tap a star below."
+                    body += (f"\n\n{ui.DIVIDER}\n{E.shield} **Staff review** · How was our support? Tap a star below."
                              + (f" It's posted in <#{staff_cid}>." if staff_cid else ""))
                 if product_cid:
                     body += (("\n\n" if cfg["ask_rating"] else f"\n\n{ui.DIVIDER}\n")
-                             + f"🛍️ **Product review** · Bought something? Tap **Review a product** to rate it. It's posted in <#{product_cid}>.")
+                             + f"{E.shop} **Product review** · Bought something? Tap **Review a product** to rate it. It's posted in <#{product_cid}>.")
                 dm = ui.card(
                     f"Your ticket {number} was closed", body, color=WARN, thumbnail=guild.icon.url if guild.icon else None,
                     footer="Your transcript is attached. Open it in a web browser." if data else guild.name,
@@ -860,7 +860,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
                     try:
                         await channel.send(
                             content=f"<@{t['user_id']}>",
-                            view=simple("⏳ Still there?", f"This ticket will close automatically in about **{left}** if nobody replies.", WARN),
+                            view=simple(f"{E.hourglass} Still there?", f"This ticket will close automatically in about **{left}** if nobody replies.", WARN),
                             allowed_mentions=discord.AllowedMentions(users=True),
                         )
                     except discord.HTTPException:
@@ -904,7 +904,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         if category_id is None:
             try:
                 made = await guild.create_category(
-                    "🎫 Tickets", reason="Ticket system setup",
+                    f"{E.ticket} Tickets", reason="Ticket system setup",
                     overwrites={
                         guild.default_role: discord.PermissionOverwrite(view_channel=False),
                         guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True),
@@ -937,11 +937,11 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         await self.post_panel(guild, cfg, old=old)
 
         warn = "" if self.bot.intents.message_content else (
-            "\n\n⚠️ **Transcripts need the Message Content Intent.** Turn it on in the Discord Developer Portal (Bot tab), then set the variable "
+            f"\n\n{E.warn} **Transcripts need the Message Content Intent.** Turn it on in the Discord Developer Portal (Bot tab), then set the variable "
             "`MESSAGE_CONTENT=true` and redeploy. Until then transcripts show who spoke and when, but not what was said."
         )
         await interaction.followup.send(
-            f"✅ Tickets are live in {channel.mention}.\nStaff role: {staff_role.mention} · Tickets go in <#{category_id}>\n"
+            f"{E.check} Tickets are live in {channel.mention}.\nStaff role: {staff_role.mention} · Tickets go in <#{category_id}>\n"
             "Next: `/ticket addtype` to add ticket types, `/ticket panel` to restyle the panel, `/ticket settings` for limits and auto-close." + warn,
             ephemeral=True,
         )
@@ -977,7 +977,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             await db.upsert_ticket_config(interaction.guild_id, **updates)
         cfg = await db.get_ticket_config(interaction.guild_id)
         message = await self.post_panel(interaction.guild, cfg)
-        await interaction.followup.send(f"✅ Panel updated: {message.jump_url}", ephemeral=True)
+        await interaction.followup.send(f"{E.check} Panel updated: {message.jump_url}", ephemeral=True)
 
     @app_commands.command(description="Ticket settings: limits, auto-close, transcripts, pings, ratings")
     @app_commands.describe(
@@ -1027,7 +1027,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         def chan(cid):
             return f"<#{cid}>" if cid else "Not set"
 
-        embed = ui.card("🎫 Ticket settings", color=INFO, section="Tickets")
+        embed = ui.card(f"{E.ticket} Ticket settings", color=INFO, section="Tickets")
         embed.add_field(name="Panel", value=chan(cfg["panel_channel_id"]))
         embed.add_field(name="Ticket category", value=chan(cfg["category_id"]))
         embed.add_field(name="Transcripts", value=chan(cfg["transcript_channel_id"]))
@@ -1038,8 +1038,8 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         embed.add_field(name="DM transcript", value="On" if cfg["dm_transcript"] else "Off")
         embed.add_field(name="Ask for rating", value="On" if cfg["ask_rating"] else "Off")
         embed.add_field(name="Ticket types", value=", ".join(f"{t['emoji'] or ''}{t['name']}" for t in types) or "None", inline=False)
-        embed.add_field(name="Message text in transcripts", value="✅ Included" if self.bot.intents.message_content else "⚠️ Off (needs Message Content Intent)", inline=False)
-        await interaction.response.send_message(("✅ Saved.\n" if updates else ""), view=embed, ephemeral=True)
+        embed.add_field(name="Message text in transcripts", value=f"{E.check} Included" if self.bot.intents.message_content else f"{E.warn} Off (needs Message Content Intent)", inline=False)
+        await interaction.response.send_message((f"{E.check} Saved.\n" if updates else ""), view=embed, ephemeral=True)
 
     @app_commands.command(description="Let another role see and answer tickets")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1050,7 +1050,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         roles = set(staff_ids(cfg))
         roles.add(role.id)
         await db.upsert_ticket_config(interaction.guild_id, staff_roles=",".join(str(r) for r in sorted(roles)))
-        await interaction.response.send_message(f"✅ {role.mention} is now ticket staff. It applies to **new** tickets.", ephemeral=True)
+        await interaction.response.send_message(f"{E.check} {role.mention} is now ticket staff. It applies to **new** tickets.", ephemeral=True)
 
     @app_commands.command(description="Remove a staff role from the ticket system")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1061,7 +1061,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             raise UserError("That role isn't ticket staff.")
         roles.discard(role.id)
         await db.upsert_ticket_config(interaction.guild_id, staff_roles=",".join(str(r) for r in sorted(roles)) or None)
-        await interaction.response.send_message(f"✅ Removed {role.mention} from ticket staff.", ephemeral=True)
+        await interaction.response.send_message(f"{E.check} Removed {role.mention} from ticket staff.", ephemeral=True)
 
     @app_commands.command(description="Add or edit a ticket type (shown in the panel)")
     @app_commands.describe(
@@ -1101,7 +1101,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             )
             verb = "Added"
         await self.refresh_panel(interaction.guild)
-        await interaction.followup.send(f"✅ {verb} the **{name.strip()}** ticket type and refreshed the panel.", ephemeral=True)
+        await interaction.followup.send(f"{E.check} {verb} the **{name.strip()}** ticket type and refreshed the panel.", ephemeral=True)
 
     @app_commands.command(description="Remove a ticket type")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1116,7 +1116,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         await interaction.response.defer(ephemeral=True)
         await db.execute("DELETE FROM ticket_types WHERE id = ?", (target["id"],))
         await self.refresh_panel(interaction.guild)
-        await interaction.followup.send(f"🗑️ Removed **{target['name']}** and refreshed the panel. Existing tickets keep working.", ephemeral=True)
+        await interaction.followup.send(f"{E.trash} Removed **{target['name']}** and refreshed the panel. Existing tickets keep working.", ephemeral=True)
 
     @app_commands.command(description="Add or edit an application type (e.g. Staff / Leader apps)")
     @app_commands.describe(
@@ -1166,7 +1166,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             )
             verb = "Added"
         await self.refresh_panel(interaction.guild)
-        await interaction.followup.send(f"✅ {verb} the **{name.strip()}** application and refreshed the panel.", ephemeral=True)
+        await interaction.followup.send(f"{E.check} {verb} the **{name.strip()}** application and refreshed the panel.", ephemeral=True)
 
     @app_commands.command(description="Open or close applications so people can / can't apply")
     @app_commands.describe(open="True = people can apply, False = applications closed",
@@ -1199,10 +1199,10 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         types = await self.types_for(interaction.guild_id)
         def tag(t):
             if t["kind"] == "application":
-                return " · 📋 application " + ("🟢 open" if t["app_open"] else "🔴 closed")
+                return f" · {E.clipboard} application " + ("🟢 open" if t["app_open"] else "🔴 closed")
             return " · asks for Invoice ID" if t["needs_invoice"] else ""
         lines = [f"{t['emoji'] or '🎫'} **{t['name']}**{tag(t)}\n{t['description'] or ''}" for t in types]
-        await interaction.response.send_message(view=ui.card("🎫 Ticket types", "\n\n".join(lines), color=INFO, section="Tickets"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.ticket} Ticket types", "\n\n".join(lines), color=INFO, section="Tickets"), ephemeral=True)
 
     @app_commands.command(description="Stop someone from opening tickets")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1212,8 +1212,8 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             "INSERT OR REPLACE INTO ticket_blacklist (guild_id, user_id, reason, added_by, created_at) VALUES (?, ?, ?, ?, ?)",
             (interaction.guild_id, member.id, reason, interaction.user.id, discord.utils.utcnow().isoformat()),
         )
-        await emit(interaction.guild, "tickets", "Ticket blacklist: added", ui.kv(("👤 Member", f"{member.mention} (`{member.id}`)"), ("📝 Reason", reason or "None given")), color=WARN, actor=interaction.user, subject=member.id)
-        await interaction.response.send_message(f"🚫 {member.mention} can no longer open tickets.", ephemeral=True)
+        await emit(interaction.guild, "tickets", "Ticket blacklist: added", ui.kv((f"{E.user} Member", f"{member.mention} (`{member.id}`)"), (f"{E.note} Reason", reason or "None given")), color=WARN, actor=interaction.user, subject=member.id)
+        await interaction.response.send_message(f"{E.ban} {member.mention} can no longer open tickets.", ephemeral=True)
 
     @app_commands.command(description="Let someone open tickets again")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -1221,8 +1221,8 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         count = await db.execute("DELETE FROM ticket_blacklist WHERE guild_id = ? AND user_id = ?", (interaction.guild_id, member.id))
         if not count:
             raise UserError("That member isn't blacklisted.")
-        await emit(interaction.guild, "tickets", "Ticket blacklist: removed", ui.kv(("👤 Member", f"{member.mention} (`{member.id}`)")), actor=interaction.user, subject=member.id)
-        await interaction.response.send_message(f"✅ {member.mention} can open tickets again.", ephemeral=True)
+        await emit(interaction.guild, "tickets", "Ticket blacklist: removed", ui.kv((f"{E.user} Member", f"{member.mention} (`{member.id}`)")), actor=interaction.user, subject=member.id)
+        await interaction.response.send_message(f"{E.check} {member.mention} can open tickets again.", ephemeral=True)
 
     # ------------------------------------------------------ ticket commands ----
 
@@ -1264,8 +1264,8 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         await interaction.channel.set_permissions(
             member, overwrite=discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True, attach_files=True), reason=f"Added by {interaction.user}"
         )
-        await self.ticket_log(interaction.guild, ticket, "Member added to ticket", interaction.user, ("➕ Added", f"{member.mention} (`{member.id}`)"))
-        await interaction.response.send_message(view=simple("➕ Member added", f"{member.mention} can now see and reply in this ticket.", COLOR))
+        await self.ticket_log(interaction.guild, ticket, "Member added to ticket", interaction.user, (f"{E.plus} Added", f"{member.mention} (`{member.id}`)"))
+        await interaction.response.send_message(view=simple(f"{E.plus} Member added", f"{member.mention} can now see and reply in this ticket.", COLOR))
 
     @app_commands.command(description="Remove someone from this ticket (staff)")
     async def remove(self, interaction: discord.Interaction, member: discord.Member):
@@ -1275,8 +1275,8 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         if is_staff(member, cfg):
             raise UserError("That member is ticket staff, so they get access through their role.")
         await interaction.channel.set_permissions(member, overwrite=None, reason=f"Removed by {interaction.user}")
-        await self.ticket_log(interaction.guild, ticket, "Member removed from ticket", interaction.user, ("➖ Removed", f"{member.mention} (`{member.id}`)"))
-        await interaction.response.send_message(view=simple("➖ Member removed", f"{member.mention} can no longer see this ticket.", WARN))
+        await self.ticket_log(interaction.guild, ticket, "Member removed from ticket", interaction.user, (f"{E.minus} Removed", f"{member.mention} (`{member.id}`)"))
+        await interaction.response.send_message(view=simple(f"{E.minus} Member removed", f"{member.mention} can no longer see this ticket.", WARN))
 
     @app_commands.command(description="Rename this ticket channel (staff)")
     @app_commands.describe(name="New name (letters, numbers and dashes)")
@@ -1288,7 +1288,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             await asyncio.wait_for(interaction.channel.edit(name=new_name, reason=f"Renamed by {interaction.user}"), timeout=8)
         except asyncio.TimeoutError:
             raise UserError("Discord limits channel renames to 2 every 10 minutes. Please try again a bit later.") from None
-        await interaction.followup.send(view=simple("✏️ Renamed", f"This ticket is now `{new_name}`.", COLOR))
+        await interaction.followup.send(view=simple(f"{E.edit} Renamed", f"This ticket is now `{new_name}`.", COLOR))
 
     @app_commands.command(description="Show details about this ticket")
     async def info(self, interaction: discord.Interaction):
@@ -1304,7 +1304,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         await interaction.response.defer(ephemeral=True)
         data, count = await self.build_transcript(interaction.guild, interaction.channel, ticket)
         await interaction.followup.send(
-            f"📄 Transcript of {count} message(s). Open the file in a web browser.",
+            f"{E.file} Transcript of {count} message(s). Open the file in a web browser.",
             file=discord.File(io.BytesIO(data), filename=f"transcript-{ticket['number']:04d}.html"), ephemeral=True,
         )
 
@@ -1329,9 +1329,9 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         lines = []
         for t in rows:
             where = f"<#{t['channel_id']}>" if t["status"] == "open" and t["channel_id"] else "closed"
-            claimed = f" · 🙋 <@{t['claimed_by']}>" if t["claimed_by"] else ""
+            claimed = f" · {E.users} <@{t['claimed_by']}>" if t["claimed_by"] else ""
             lines.append(f"{PRIORITIES.get(t['priority'], PRIORITIES['normal'])[0]} `{number_label(t)}` {where} · {t['type_name']} · <@{t['user_id']}>{claimed}")
-        await interaction.response.send_message(view=ui.card(f"🎫 Tickets ({wanted})", "\n".join(lines), color=INFO, section="Tickets"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.ticket} Tickets ({wanted})", "\n".join(lines), color=INFO, section="Tickets"), ephemeral=True)
 
     @app_commands.command(description="Ticket statistics (staff)")
     async def stats(self, interaction: discord.Interaction):
@@ -1351,7 +1351,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         by_type = Counter(t["type_name"] for t in rows).most_common(5)
         claimers = Counter(t["claimed_by"] for t in rows if t["claimed_by"]).most_common(3)
 
-        embed = ui.card("📊 Ticket stats", color=INFO, section="Tickets")
+        embed = ui.card(f"{E.chart} Ticket stats", color=INFO, section="Tickets")
         embed.add_field(name="Open now", value=str(len(open_rows)))
         embed.add_field(name="Opened this week", value=str(len(week)))
         embed.add_field(name="All time", value=str(len(rows)))

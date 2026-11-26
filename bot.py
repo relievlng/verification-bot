@@ -33,7 +33,7 @@ if _missing_core:
 _missing_helpers = missing_top_level_files(_here, [n for n in TOP_LEVEL_FILES if n not in CORE_FILES])
 
 import db  # noqa: E402  (imported after load_dotenv so DB_PATH is picked up)
-from common import UserError  # noqa: E402
+from common import E, UserError, resolve_emojis  # noqa: E402
 
 try:
     from guildlock import enforce_lock  # noqa: E402
@@ -157,6 +157,9 @@ class VerificationBot(commands.Bot):
 
     async def on_ready(self):
         log.info("Logged in as %s (%s) in %d server(s)", self.user, self.user.id, len(self.guilds))
+        resolved = resolve_emojis(self.emojis)  # wire up any uploaded xzx_* custom emojis
+        if resolved:
+            log.info("Resolved %d custom emojis (xzx_*)", resolved)
         await enforce_lock(self)  # leaves any server that isn't approved (only if the lock is on)
         if not self.rotate_status.is_running():
             self.rotate_status.change_interval(seconds=STATUS_SECONDS)
@@ -180,7 +183,7 @@ bot = VerificationBot()
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     original = getattr(error, "original", None)
     if isinstance(original, UserError):
-        msg = f"⚠️ {original}"
+        msg = f"{E.warn} {original}"
     elif isinstance(error, app_commands.MissingPermissions):
         msg = "You don't have permission to use that command."
     elif isinstance(error, app_commands.BotMissingPermissions):

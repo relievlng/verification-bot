@@ -9,7 +9,7 @@ from discord.ext import commands, tasks
 
 import db
 import ui
-from common import COLOR, DANGER, INFO, SUCCESS, WARN, UserError, check_can_send, staff_ids
+from common import DANGER, INFO, SUCCESS, WARN, UserError, check_can_send, staff_ids, E
 from logutil import (CATEGORIES, CATEGORY_STYLE, ESSENTIALS, HISTORY_DAYS, LOG_CHANNELS, clip, emit, find_audit_entry,
                      prune_history, was_handled)
 
@@ -20,7 +20,7 @@ async def category_autocomplete(interaction: discord.Interaction, current: str) 
     matches = [(key, label) for key, label in CATEGORIES.items() if current in key.lower() or current in label.lower()]
     return [app_commands.Choice(name=label, value=key) for key, label in matches[:25]]
 DANGEROUS = ("administrator", "manage_guild", "manage_roles", "manage_channels", "manage_webhooks", "ban_members", "kick_members", "mention_everyone")
-LOG_CATEGORY_NAME = "📋 Logs"
+LOG_CATEGORY_NAME = f"{E.clipboard} Logs"
 
 
 def pretty(name: str) -> str:
@@ -90,7 +90,7 @@ class LogsDashboard(discord.ui.View):
         except UserError as e:
             return await self.cog.fail(interaction, e)
         await self.cog.refresh_dashboard(
-            interaction, note=f"⚡ **All set!** Every log is on and sent to {len(made)} private channels in **{LOG_CATEGORY_NAME}**. I posted a test message in each ({tested} sent).", edited=True,
+            interaction, note=f"{E.zap} **All set!** Every log is on and sent to {len(made)} private channels in **{LOG_CATEGORY_NAME}**. I posted a test message in each ({tested} sent).", edited=True,
         )
 
     @discord.ui.button(label="Essentials only", emoji="⭐", style=discord.ButtonStyle.secondary, row=1)
@@ -102,7 +102,7 @@ class LogsDashboard(discord.ui.View):
             made, tested = await self.cog.run_full_setup(interaction.guild, interaction.user, only=ESSENTIALS)
         except UserError as e:
             return await self.cog.fail(interaction, e)
-        await self.cog.refresh_dashboard(interaction, note=f"⭐ Only the essential logs are on, sent to private channels in **{LOG_CATEGORY_NAME}**.", edited=True)
+        await self.cog.refresh_dashboard(interaction, note=f"{E.star} Only the essential logs are on, sent to private channels in **{LOG_CATEGORY_NAME}**.", edited=True)
 
     @discord.ui.button(label="All in this channel", emoji="📌", style=discord.ButtonStyle.secondary, row=1)
     async def use_here(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -121,14 +121,14 @@ class LogsDashboard(discord.ui.View):
                 "ON CONFLICT(guild_id, category) DO UPDATE SET channel_id = NULL, enabled = 1", (interaction.guild_id, key),
             )
         await db.upsert_config(interaction.guild_id, log_channel_id=channel.id)
-        await self.cog.refresh_dashboard(interaction, note=f"📌 Every log now goes to {channel.mention}.")
+        await self.cog.refresh_dashboard(interaction, note=f"{E.tack} Every log now goes to {channel.mention}.")
 
     @discord.ui.button(label="Send test", emoji="🧪", style=discord.ButtonStyle.secondary, row=1)
     async def send_test(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not await self.cog.guard(interaction):
             return
         sent = await self.cog.send_test(interaction.guild)
-        await self.cog.refresh_dashboard(interaction, note=f"🧪 Sent a test message to {sent} channel(s)." if sent else "🧪 Nothing to test yet. Press **⚡ Set up everything** first.")
+        await self.cog.refresh_dashboard(interaction, note=f"{E.test} Sent a test message to {sent} channel(s)." if sent else f"{E.test} Nothing to test yet. Press **{E.zap} Set up everything** first.")
 
 
 class ConfirmLogCleanup(discord.ui.View):
@@ -147,16 +147,16 @@ class ConfirmLogCleanup(discord.ui.View):
     @discord.ui.button(label="Clean up", emoji="🧹", style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.stop()
-        await interaction.response.edit_message(view=ui.card("🧹 Cleaning up…", "This takes a few seconds per channel."))
+        await interaction.response.edit_message(view=ui.card(f"{E.clean} Cleaning up…", "This takes a few seconds per channel."))
         emptied, failed, cleared = await self.cog.clean_logs(interaction.guild, self.what, interaction.user)
         lines = []
         if self.what in ("all", "channels"):
-            lines.append(f"📭 **{emptied}** log channel{'s' if emptied != 1 else ''} emptied (fresh copies, same name, place and permissions)")
+            lines.append(f"{E.mail} **{emptied}** log channel{'s' if emptied != 1 else ''} emptied (fresh copies, same name, place and permissions)")
             if failed:
-                lines.append(f"⚠️ {failed} couldn't be emptied. I need **Manage Channels** there")
+                lines.append(f"{E.warn} {failed} couldn't be emptied. I need **Manage Channels** there")
         if self.what in ("all", "history"):
-            lines.append(f"🗂️ **{cleared:,}** saved log entries cleared (used by `/logs search`)")
-        await interaction.edit_original_response(view=ui.card("✅ Logs cleaned up", "\n".join(lines), color=SUCCESS, guild=interaction.guild, section="Logs"))
+            lines.append(f"{E.folder} **{cleared:,}** saved log entries cleared (used by `/logs search`)")
+        await interaction.edit_original_response(view=ui.card(f"{E.check} Logs cleaned up", "\n".join(lines), color=SUCCESS, guild=interaction.guild, section="Logs"))
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -222,17 +222,17 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         for key in CATEGORIES:
             emoji, name = label_parts(key)
             if not enabled[key]:
-                lines.append(f"❌ {emoji} ~~{name}~~")
+                lines.append(f"{E.cross} {emoji} ~~{name}~~")
                 continue
             route = routes.get(key)
             where = f"<#{route['channel_id']}>" if route and route["channel_id"] else default
-            lines.append(f"✅ {emoji} **{name}** · {where or '*no channel yet*'}")
+            lines.append(f"{E.check} {emoji} **{name}** · {where or '*no channel yet*'}")
         tip = ""
         if not default and not any(r["channel_id"] for r in routes.values()):
-            tip = "\n\n💡 **Start here:** press **⚡ Set up everything**. One click turns every log on, creates the private channels and tests them."
+            tip = f"\n\n{E.idea} **Start here:** press **{E.zap} Set up everything**. One click turns every log on, creates the private channels and tests them."
         body = (f"{note}\n\n" if note else "") + "Pick what to log and where it goes. This screen updates as you click.\n\n" + ui.DIVIDER + "\n" + "\n".join(lines) + tip
         embed = ui.card(
-            "📋 Logging setup", body, guild=guild, section="Logs",
+            f"{E.clipboard} Logging setup", body, guild=guild, section="Logs",
             footer="Message text: " + ("logged" if self.content_enabled else "not logged (turn on Message Content Intent to include it)"),
         )
         return embed, {k for k, v in enabled.items() if v}
@@ -246,7 +246,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             await interaction.response.edit_message(view=embed.with_view(view))
 
     async def create_log_channels(self, guild: discord.Guild, invoker: discord.Member) -> dict:
-        """Make a private '📋 Logs' category with one channel per kind of log, and route each category there."""
+        f"""Make a private '{E.clipboard} Logs' category with one channel per kind of log, and route each category there."""
         tickets_cfg = await db.get_ticket_config(guild.id)
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
@@ -306,9 +306,9 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             channel = guild.get_channel(cid)
             if channel is None:
                 continue
-            body = "Logging works here ✅\n\n" + "\n".join(f"{emoji} {name}" for emoji, name in cats)
+            body = f"Logging works here {E.check}\n\n" + "\n".join(f"{emoji} {name}" for emoji, name in cats)
             try:
-                await channel.send(view=ui.card("🧪 Test log", body, guild=guild, section="Logs"))
+                await channel.send(view=ui.card(f"{E.test} Test log", body, guild=guild, section="Logs"))
                 sent += 1
             except discord.HTTPException:
                 pass
@@ -358,9 +358,9 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             row = await db.fetch_one("SELECT COUNT(*) AS c FROM log_history WHERE guild_id = ?", (guild.id,))
             cleared = row["c"] if row else 0
             await db.execute("DELETE FROM log_history WHERE guild_id = ?", (guild.id,))
-        await emit(guild, "staff", "🧹 Logs cleaned up",
-                   ui.kv(("🛡️ By", actor.mention), ("📭 Channels emptied", str(emptied) if what != "history" else None),
-                         ("🗂️ History cleared", f"{cleared:,} entries" if what != "channels" else None)), subject=actor.id)
+        await emit(guild, "staff", f"{E.clean} Logs cleaned up",
+                   ui.kv((f"{E.shield} By", actor.mention), (f"{E.mail} Channels emptied", str(emptied) if what != "history" else None),
+                         (f"{E.folder} History cleared", f"{cleared:,} entries" if what != "channels" else None)), subject=actor.id)
         return emptied, failed, cleared
 
     @app_commands.command(description="Clean up logs: empty every log channel and/or clear saved log history (asks first)")
@@ -377,18 +377,18 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         lines = []
         if what in ("all", "channels"):
             if not channels:
-                lines.append("📭 No log channels are set up.")
+                lines.append(f"{E.mail} No log channels are set up.")
             else:
-                lines.append(f"📭 **Empty {len(channels)} log channel{'s' if len(channels) != 1 else ''}**: each is swapped for a fresh copy "
+                lines.append(f"{E.mail} **Empty {len(channels)} log channel{'s' if len(channels) != 1 else ''}**: each is swapped for a fresh copy "
                              "with the same name, position and permissions, so logging carries on as normal.")
                 lines.append(" ".join(c.mention for c in channels[:30]) + (" …" if len(channels) > 30 else ""))
                 if not interaction.guild.me.guild_permissions.manage_channels:
-                    lines.append("⚠️ I need the **Manage Channels** permission for this.")
+                    lines.append(f"{E.warn} I need the **Manage Channels** permission for this.")
         if what in ("all", "history"):
-            lines.append(f"🗂️ **Clear {history:,} saved log entries** (what `/logs search` looks through).")
+            lines.append(f"{E.folder} **Clear {history:,} saved log entries** (what `/logs search` looks through).")
         lines.append("\nOld log messages can't be brought back afterwards. Settings, tickets, orders and keys are **not** touched.")
         nothing = (what == "channels" and not channels) or (what == "history" and not history) or (what == "all" and not channels and not history)
-        _card = ui.card("🧹 Log cleanup preview", "\n".join(lines), color=WARN, guild=interaction.guild, section="Logs")
+        _card = ui.card(f"{E.clean} Log cleanup preview", "\n".join(lines), color=WARN, guild=interaction.guild, section="Logs")
         _confirm = None if nothing else ConfirmLogCleanup(self, interaction.user.id, what)
         await interaction.response.send_message(
             view=_card.with_view(_confirm), ephemeral=True)
@@ -401,7 +401,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         if channel:
             check_can_send(channel, interaction.guild.me)
             await db.upsert_config(interaction.guild_id, log_channel_id=channel.id)
-            note = f"📌 Logs now go to {channel.mention}."
+            note = f"{E.tack} Logs now go to {channel.mention}."
         embed, on = await self.dashboard_embed(interaction.guild, note)
         await interaction.response.send_message(view=embed.with_view(LogsDashboard(self, on)), ephemeral=True)
 
@@ -412,7 +412,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         made, tested = await self.run_full_setup(interaction.guild, interaction.user)
         lines = [f"{name.split('・')[0]} <#{made[key].id}> · {topic}" for key, (name, topic, _) in LOG_CHANNELS.items()]
         embed = ui.card(
-            "⚡ Logging is ready",
+            f"{E.zap} Logging is ready",
             f"Every log is **on** and sent to its own private channel in **{LOG_CATEGORY_NAME}** (only you, me and your ticket staff can see them). I posted a test message in each.\n\n" + "\n".join(lines)
             + f"\n\n{ui.DIVIDER}\nChange anything later with `/logs setup`.",
             guild=interaction.guild, section="Logs",
@@ -442,7 +442,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             "INSERT INTO log_routes (guild_id, category, channel_id) VALUES (?, ?, ?) ON CONFLICT(guild_id, category) DO UPDATE SET channel_id = excluded.channel_id",
             (interaction.guild_id, category, channel.id if channel else None),
         )
-        await interaction.response.send_message(f"✅ **{CATEGORIES[category]}** now goes to {channel.mention if channel else 'the default log channel'}.", ephemeral=True)
+        await interaction.response.send_message(f"{E.check} **{CATEGORIES[category]}** now goes to {channel.mention if channel else 'the default log channel'}.", ephemeral=True)
 
     @app_commands.command(description="Show what's being logged and where")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -456,7 +456,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         sent = await self.send_test(interaction.guild)
         if not sent:
             raise UserError("There's nowhere to log to yet. Run `/logs setup` first.")
-        await interaction.response.send_message(f"🧪 Sent a test message to {sent} channel(s).", ephemeral=True)
+        await interaction.response.send_message(f"{E.test} Sent a test message to {sent} channel(s).", ephemeral=True)
 
     @app_commands.command(description="Search recent log entries, for one member or one category")
     @app_commands.describe(member="Only entries about this member", category="Only this category (start typing to search)")
@@ -500,7 +500,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             f"{CATEGORY_STYLE.get(r['category'], ('•',))[0]}\n　`{ui.bar(r['w'] / peak)}` **{r['w']:,}** this week · {int(r['d'] or 0):,} today" for r in rows
         ]
         total = sum(r["w"] for r in rows)
-        await interaction.response.send_message(view=ui.card("📊 Log stats", f"**{total:,}** events in the last 7 days\n\n" + "\n\n".join(lines), guild=interaction.guild, section="Logs"), ephemeral=True)
+        await interaction.response.send_message(view=ui.card(f"{E.chart} Log stats", f"**{total:,}** events in the last 7 days\n\n" + "\n\n".join(lines), guild=interaction.guild, section="Logs"), ephemeral=True)
 
     # ---------------------------------------------------------- members ----
 
@@ -509,9 +509,9 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         age = (discord.utils.utcnow() - member.created_at).days
         await emit(
             member.guild, "join", "Member joined",
-            ui.kv(("👤 Member", member.mention), ("📅 Account created", discord.utils.format_dt(member.created_at, "R")),
-                  ("👥 Member count", f"{member.guild.member_count:,}"), ("🏷️ Type", "🤖 Bot" if member.bot else None),
-                  ("🚩 Warning", f"New account, only {age} day(s) old" if age < 7 and not member.bot else None)),
+            ui.kv((f"{E.user} Member", member.mention), (f"{E.calendar} Account created", discord.utils.format_dt(member.created_at, "R")),
+                  (f"{E.users} Member count", f"{member.guild.member_count:,}"), ("🏷️ Type", f"{E.bot} Bot" if member.bot else None),
+                  (f"{E.flag} Warning", f"New account, only {age} day(s) old" if age < 7 and not member.bot else None)),
             SUCCESS, author=self.who(member), footer=f"ID {member.id}", subject=member.id,
         )
 
@@ -527,7 +527,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         if kick:
             await emit(
                 guild, "kick", "Member kicked",
-                ui.kv(("👤 Member", member.mention), ("🛡️ By", kick.user.mention if kick.user else "Unknown"), ("📝 Reason", kick.reason or "None given")),
+                ui.kv((f"{E.user} Member", member.mention), (f"{E.shield} By", kick.user.mention if kick.user else "Unknown"), (f"{E.note} Reason", kick.reason or "None given")),
                 WARN, author=self.who(member), footer=f"ID {member.id}", subject=member.id,
             )
             return
@@ -535,8 +535,8 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         stayed = ui.duration((discord.utils.utcnow() - member.joined_at).total_seconds()) if member.joined_at else None
         await emit(
             guild, "leave", "Member left",
-            ui.kv(("👤 Member", member.mention), ("📥 Joined", discord.utils.format_dt(member.joined_at, "R") if member.joined_at else None),
-                  ("⏱️ Stayed", stayed), ("🎭 Roles", clip(roles, 800)), ("👥 Member count", f"{guild.member_count:,}")),
+            ui.kv((f"{E.user} Member", member.mention), (f"{E.inbox} Joined", discord.utils.format_dt(member.joined_at, "R") if member.joined_at else None),
+                  ("⏱️ Stayed", stayed), (f"{E.roles} Roles", clip(roles, 800)), (f"{E.users} Member count", f"{guild.member_count:,}")),
             DANGER, author=self.who(member), footer=f"ID {member.id}", subject=member.id,
         )
 
@@ -548,7 +548,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         entry = await find_audit_entry(guild, discord.AuditLogAction.ban, user.id)
         await emit(
             guild, "ban", "Member banned",
-            ui.kv(("👤 Member", user.mention), ("🛡️ By", entry.user.mention if entry and entry.user else "Unknown"), ("📝 Reason", (entry.reason if entry else None) or "None given")),
+            ui.kv((f"{E.user} Member", user.mention), (f"{E.shield} By", entry.user.mention if entry and entry.user else "Unknown"), (f"{E.note} Reason", (entry.reason if entry else None) or "None given")),
             DANGER, author=self.who(user), footer=f"ID {user.id}", subject=user.id,
         )
 
@@ -559,7 +559,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         await asyncio.sleep(1.5)
         entry = await find_audit_entry(guild, discord.AuditLogAction.unban, user.id)
         await emit(
-            guild, "ban", "Member unbanned", ui.kv(("👤 Member", user.mention), ("🛡️ By", entry.user.mention if entry and entry.user else "Unknown")),
+            guild, "ban", "Member unbanned", ui.kv((f"{E.user} Member", user.mention), (f"{E.shield} By", entry.user.mention if entry and entry.user else "Unknown")),
             SUCCESS, author=self.who(user), footer=f"ID {user.id}", subject=user.id,
         )
 
@@ -573,26 +573,26 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             risky = sorted({p for r in added for p in dangerous_perms(r.permissions)})
             await emit(
                 guild, "role_update", "Roles updated",
-                ui.kv(("👤 Member", after.mention), ("➕ Added", ", ".join(r.mention for r in added) if added else None),
-                      ("➖ Removed", ", ".join(r.mention for r in removed) if removed else None), ("🛡️ By", entry.user.mention if entry and entry.user else None),
-                      ("⚠️ Dangerous", "Now has " + ", ".join(risky) if risky else None)),
+                ui.kv((f"{E.user} Member", after.mention), (f"{E.plus} Added", ", ".join(r.mention for r in added) if added else None),
+                      (f"{E.minus} Removed", ", ".join(r.mention for r in removed) if removed else None), (f"{E.shield} By", entry.user.mention if entry and entry.user else None),
+                      (f"{E.warn} Dangerous", "Now has " + ", ".join(risky) if risky else None)),
                 WARN if risky else None, author=self.who(after), footer=f"ID {after.id}", subject=after.id,
             )
         if before.nick != after.nick:
             await emit(
                 guild, "nicknames", "Nickname changed",
-                ui.kv(("👤 Member", after.mention), ("⬅️ Before", before.nick or "(none)"), ("➡️ After", after.nick or "(none)")),
+                ui.kv((f"{E.user} Member", after.mention), ("⬅️ Before", before.nick or "(none)"), ("➡️ After", after.nick or "(none)")),
                 author=self.who(after), footer=f"ID {after.id}", subject=after.id,
             )
         if before.timed_out_until != after.timed_out_until and was_handled(guild.id, after.id, "timeout" if after.timed_out_until else "untimeout"):
             pass  # /timeout already logged this
         elif before.timed_out_until != after.timed_out_until:
             entry = await find_audit_entry(guild, discord.AuditLogAction.member_update, after.id, within=10)
-            details = (("🛡️ By", entry.user.mention if entry and entry.user else None), ("📝 Reason", entry.reason if entry and entry.reason else None))
+            details = ((f"{E.shield} By", entry.user.mention if entry and entry.user else None), (f"{E.note} Reason", entry.reason if entry and entry.reason else None))
             if after.timed_out_until:
-                await emit(guild, "timeout", "Member timed out", ui.kv(("👤 Member", after.mention), ("⏳ Until", discord.utils.format_dt(after.timed_out_until, "f")), *details), WARN, author=self.who(after), footer=f"ID {after.id}", subject=after.id)
+                await emit(guild, "timeout", "Member timed out", ui.kv((f"{E.user} Member", after.mention), (f"{E.hourglass} Until", discord.utils.format_dt(after.timed_out_until, "f")), *details), WARN, author=self.who(after), footer=f"ID {after.id}", subject=after.id)
             else:
-                await emit(guild, "timeout", "Timeout removed", ui.kv(("👤 Member", after.mention), details[0]), SUCCESS, author=self.who(after), footer=f"ID {after.id}", subject=after.id)
+                await emit(guild, "timeout", "Timeout removed", ui.kv((f"{E.user} Member", after.mention), details[0]), SUCCESS, author=self.who(after), footer=f"ID {after.id}", subject=after.id)
 
     @commands.Cog.listener()
     async def on_user_update(self, before: discord.User, after: discord.User):
@@ -602,7 +602,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             if guild.get_member(after.id):
                 await emit(
                     guild, "nicknames", "Username changed",
-                    ui.kv(("👤 User", after.mention), ("⬅️ Before", before.global_name or before.name), ("➡️ After", after.global_name or after.name)),
+                    ui.kv((f"{E.user} User", after.mention), ("⬅️ Before", before.global_name or before.name), ("➡️ After", after.global_name or after.name)),
                     author=self.who(after), footer=f"ID {after.id}", subject=after.id,
                 )
 
@@ -619,9 +619,9 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         reply = getattr(getattr(message, "reference", None), "message_id", None)
         await emit(
             message.guild, "message_delete", "Message deleted",
-            ui.kv(("✍️ Author", message.author.mention), ("💬 Channel", message.channel.mention),
+            ui.kv((f"{E.edit} Author", message.author.mention), (f"{E.chat} Channel", message.channel.mention),
                   ("↩️ Replying to", f"[a message](https://discord.com/channels/{message.guild.id}/{message.channel.id}/{reply})" if reply else None),
-                  ("📅 Sent", discord.utils.format_dt(message.created_at, "R") if getattr(message, "created_at", None) else None)),
+                  (f"{E.calendar} Sent", discord.utils.format_dt(message.created_at, "R") if getattr(message, "created_at", None) else None)),
             DANGER, fields=tuple(fields), author=self.who(message.author), footer=f"Author ID {message.author.id}", subject=message.author.id,
         )
 
@@ -631,7 +631,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             return
         await emit(
             messages[0].guild, "message_delete", "Messages bulk deleted",
-            ui.kv(("💬 Channel", messages[0].channel.mention), ("🗑️ Deleted", ui.plural(len(messages), "message"))), DANGER,
+            ui.kv((f"{E.chat} Channel", messages[0].channel.mention), (f"{E.trash} Deleted", ui.plural(len(messages), "message"))), DANGER,
         )
 
     @commands.Cog.listener()
@@ -640,7 +640,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             return
         await emit(
             after.guild, "message_edit", "Message edited",
-            ui.kv(("✍️ Author", after.author.mention), ("💬 Channel", after.channel.mention), ("🔗 Link", f"[Jump to message]({after.jump_url})")),
+            ui.kv((f"{E.edit} Author", after.author.mention), (f"{E.chat} Channel", after.channel.mention), (f"{E.link} Link", f"[Jump to message]({after.jump_url})")),
             WARN, fields=(("⬅️ Before", before.content), ("➡️ After", after.content)), author=self.who(after.author), footer=f"Author ID {after.author.id}", subject=after.author.id,
         )
 
@@ -649,82 +649,82 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel: discord.abc.GuildChannel):
         by = await self.by(channel.guild, "channel_create", channel.id)
-        await emit(channel.guild, "channel_create", "Channel created", ui.kv(("💬 Channel", channel.mention), ("🏷️ Type", str(channel.type).title()), ("🛡️ By", by)), SUCCESS)
+        await emit(channel.guild, "channel_create", "Channel created", ui.kv((f"{E.chat} Channel", channel.mention), ("🏷️ Type", str(channel.type).title()), (f"{E.shield} By", by)), SUCCESS)
 
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel):
         by = await self.by(channel.guild, "channel_delete", channel.id)
-        await emit(channel.guild, "channel_delete", "Channel deleted", ui.kv(("💬 Channel", f"**#{channel.name}**"), ("🏷️ Type", str(channel.type).title()), ("🛡️ By", by)), DANGER)
+        await emit(channel.guild, "channel_delete", "Channel deleted", ui.kv((f"{E.chat} Channel", f"**#{channel.name}**"), ("🏷️ Type", str(channel.type).title()), (f"{E.shield} By", by)), DANGER)
 
     @commands.Cog.listener()
     async def on_guild_channel_update(self, before: discord.abc.GuildChannel, after: discord.abc.GuildChannel):
         changes = []
         if before.name != after.name:
-            changes.append(("✏️ Name", f"{before.name} → {after.name}"))
+            changes.append((f"{E.edit} Name", f"{before.name} → {after.name}"))
         if getattr(before, "topic", None) != getattr(after, "topic", None):
-            changes.append(("📌 Topic", f"{clip(getattr(before, 'topic', None), 200)} → {clip(getattr(after, 'topic', None), 200)}"))
+            changes.append((f"{E.tack} Topic", f"{clip(getattr(before, 'topic', None), 200)} → {clip(getattr(after, 'topic', None), 200)}"))
         if getattr(before, "slowmode_delay", None) != getattr(after, "slowmode_delay", None):
             changes.append(("🐌 Slowmode", f"{getattr(before, 'slowmode_delay', 0)}s → {getattr(after, 'slowmode_delay', 0)}s"))
         if getattr(before, "nsfw", None) != getattr(after, "nsfw", None):
             changes.append(("🔞 Age-restricted", f"{getattr(before, 'nsfw', False)} → {getattr(after, 'nsfw', False)}"))
         if before.overwrites != after.overwrites:
-            changes.append(("🔑 Permissions", "Channel permissions were changed"))
+            changes.append((f"{E.key} Permissions", "Channel permissions were changed"))
         if changes:
             by = await self.by(after.guild, "channel_update", after.id)
-            await emit(after.guild, "channel_update", "Channel updated", ui.kv(("💬 Channel", after.mention), *changes, ("🛡️ By", by)))
+            await emit(after.guild, "channel_update", "Channel updated", ui.kv((f"{E.chat} Channel", after.mention), *changes, (f"{E.shield} By", by)))
 
     @commands.Cog.listener()
     async def on_thread_create(self, thread: discord.Thread):
-        await emit(thread.guild, "channel_create", "Thread created", ui.kv(("🧵 Thread", thread.mention), ("💬 In", thread.parent.mention if thread.parent else None), ("👤 By", f"<@{thread.owner_id}>" if thread.owner_id else None)), SUCCESS)
+        await emit(thread.guild, "channel_create", "Thread created", ui.kv(("🧵 Thread", thread.mention), (f"{E.chat} In", thread.parent.mention if thread.parent else None), (f"{E.user} By", f"<@{thread.owner_id}>" if thread.owner_id else None)), SUCCESS)
 
     @commands.Cog.listener()
     async def on_thread_delete(self, thread: discord.Thread):
-        await emit(thread.guild, "channel_delete", "Thread deleted", ui.kv(("🧵 Thread", f"**{thread.name}**"), ("💬 In", thread.parent.mention if thread.parent else None)), DANGER)
+        await emit(thread.guild, "channel_delete", "Thread deleted", ui.kv(("🧵 Thread", f"**{thread.name}**"), (f"{E.chat} In", thread.parent.mention if thread.parent else None)), DANGER)
 
     @commands.Cog.listener()
     async def on_webhooks_update(self, channel: discord.abc.GuildChannel):
-        await emit(channel.guild, "server", "Webhooks changed", ui.kv(("💬 Channel", channel.mention), ("ℹ️ Note", "A webhook was created, edited or deleted here")), WARN)
+        await emit(channel.guild, "server", "Webhooks changed", ui.kv((f"{E.chat} Channel", channel.mention), (f"{E.info} Note", "A webhook was created, edited or deleted here")), WARN)
 
     # ------------------------------------------------------ roles/server ----
 
     @commands.Cog.listener()
     async def on_guild_role_create(self, role: discord.Role):
         by = await self.by(role.guild, "role_create", role.id)
-        await emit(role.guild, "role_create", "Role created", ui.kv(("🎭 Role", role.mention), ("🛡️ By", by)), SUCCESS)
+        await emit(role.guild, "role_create", "Role created", ui.kv((f"{E.roles} Role", role.mention), (f"{E.shield} By", by)), SUCCESS)
 
     @commands.Cog.listener()
     async def on_guild_role_delete(self, role: discord.Role):
         by = await self.by(role.guild, "role_delete", role.id)
-        await emit(role.guild, "role_delete", "Role deleted", ui.kv(("🎭 Role", f"**{role.name}**"), ("🛡️ By", by)), DANGER)
+        await emit(role.guild, "role_delete", "Role deleted", ui.kv((f"{E.roles} Role", f"**{role.name}**"), (f"{E.shield} By", by)), DANGER)
 
     @commands.Cog.listener()
     async def on_guild_role_update(self, before: discord.Role, after: discord.Role):
         changes = []
         if before.name != after.name:
-            changes.append(("✏️ Name", f"{before.name} → {after.name}"))
+            changes.append((f"{E.edit} Name", f"{before.name} → {after.name}"))
         if before.color != after.color:
             changes.append(("🎨 Colour", f"{before.color} → {after.color}"))
         risky = False
         if before.permissions != after.permissions:
             diff = perm_changes(before.permissions, after.permissions)
             risky = "⚠️" in diff
-            changes.append(("🔑 Permissions", "\n" + diff))
+            changes.append((f"{E.key} Permissions", "\n" + diff))
         if changes:
             by = await self.by(after.guild, "role_update", after.id)
-            await emit(after.guild, "role_update", "Role updated", ui.kv(("🎭 Role", after.mention), *changes, ("🛡️ By", by)), WARN if risky or before.permissions != after.permissions else None)
+            await emit(after.guild, "role_update", "Role updated", ui.kv((f"{E.roles} Role", after.mention), *changes, (f"{E.shield} By", by)), WARN if risky or before.permissions != after.permissions else None)
 
     @commands.Cog.listener()
     async def on_guild_update(self, before: discord.Guild, after: discord.Guild):
         changes = []
         if before.name != after.name:
-            changes.append(("✏️ Name", f"{before.name} → {after.name}"))
+            changes.append((f"{E.edit} Name", f"{before.name} → {after.name}"))
         if before.icon != after.icon:
-            changes.append(("🖼️ Icon", "was changed"))
+            changes.append((f"{E.image} Icon", "was changed"))
         if before.verification_level != after.verification_level:
-            changes.append(("🔐 Verification level", f"{before.verification_level} → {after.verification_level}"))
+            changes.append((f"{E.lock} Verification level", f"{before.verification_level} → {after.verification_level}"))
         if changes:
             by = await self.by(after, "guild_update", after.id)
-            await emit(after, "server", "Server updated", ui.kv(*changes, ("🛡️ By", by)), WARN)
+            await emit(after, "server", "Server updated", ui.kv(*changes, (f"{E.shield} By", by)), WARN)
 
     @commands.Cog.listener()
     async def on_guild_emojis_update(self, guild: discord.Guild, before, after):
@@ -734,7 +734,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             return
         await emit(
             guild, "server", "Emoji updated",
-            ui.kv(("➕ Added", " ".join(str(e) for e in added) if added else None), ("➖ Removed", ", ".join(f"`:{e.name}:`" for e in removed) if removed else None)),
+            ui.kv((f"{E.plus} Added", " ".join(str(e) for e in added) if added else None), (f"{E.minus} Removed", ", ".join(f"`:{e.name}:`" for e in removed) if removed else None)),
         )
 
     @commands.Cog.listener()
@@ -745,8 +745,8 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         expires = discord.utils.format_dt(discord.utils.utcnow() + timedelta(seconds=invite.max_age), "R") if invite.max_age else "Never"
         await emit(
             guild, "invites", "Invite created",
-            ui.kv(("🔗 Code", f"`{invite.code}`"), ("👤 By", invite.inviter.mention if invite.inviter else None), ("💬 Channel", invite.channel.mention if invite.channel else None),
-                  ("🔢 Max uses", str(invite.max_uses) if invite.max_uses else "Unlimited"), ("⏳ Expires", expires)),
+            ui.kv((f"{E.link} Code", f"`{invite.code}`"), (f"{E.user} By", invite.inviter.mention if invite.inviter else None), (f"{E.chat} Channel", invite.channel.mention if invite.channel else None),
+                  (f"{E.hashtag} Max uses", str(invite.max_uses) if invite.max_uses else "Unlimited"), (f"{E.hourglass} Expires", expires)),
             SUCCESS, subject=invite.inviter.id if invite.inviter else None,
         )
 
@@ -755,7 +755,7 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         guild = self.bot.get_guild(invite.guild.id) if invite.guild else None
         if guild is None:
             return
-        await emit(guild, "invites", "Invite deleted", ui.kv(("🔗 Code", f"`{invite.code}`"), ("💬 Channel", invite.channel.mention if invite.channel else None)), DANGER)
+        await emit(guild, "invites", "Invite deleted", ui.kv((f"{E.link} Code", f"`{invite.code}`"), (f"{E.chat} Channel", invite.channel.mention if invite.channel else None)), DANGER)
 
     # ------------------------------------------------------------ voice ----
 
@@ -765,22 +765,22 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
         if before.channel != after.channel:
             if before.channel is None:
                 self.voice_since[key] = time.monotonic()
-                title, text, color = "Joined voice", ui.kv(("👤 Member", member.mention), ("💬 Channel", after.channel.mention)), SUCCESS
+                title, text, color = "Joined voice", ui.kv((f"{E.user} Member", member.mention), (f"{E.chat} Channel", after.channel.mention)), SUCCESS
             elif after.channel is None:
                 started = self.voice_since.pop(key, None)
-                title, text, color = "Left voice", ui.kv(("👤 Member", member.mention), ("💬 Channel", before.channel.mention), ("⏱️ Time in voice", ui.duration(time.monotonic() - started) if started else None)), DANGER
+                title, text, color = "Left voice", ui.kv((f"{E.user} Member", member.mention), (f"{E.chat} Channel", before.channel.mention), ("⏱️ Time in voice", ui.duration(time.monotonic() - started) if started else None)), DANGER
             else:
-                title, text, color = "Moved voice channel", ui.kv(("👤 Member", member.mention), ("⬅️ From", before.channel.mention), ("➡️ To", after.channel.mention)), INFO
+                title, text, color = "Moved voice channel", ui.kv((f"{E.user} Member", member.mention), ("⬅️ From", before.channel.mention), ("➡️ To", after.channel.mention)), INFO
             await emit(member.guild, "voice", title, text, color, author=self.who(member), subject=member.id)
         elif before.mute != after.mute or before.deaf != after.deaf:
             parts = []
             if before.mute != after.mute:
-                parts.append("🔇 Server muted" if after.mute else "🔊 Server unmuted")
+                parts.append(f"{E.mute} Server muted" if after.mute else f"{E.sound} Server unmuted")
             if before.deaf != after.deaf:
                 parts.append("🙉 Server deafened" if after.deaf else "👂 Server undeafened")
-            await emit(member.guild, "voice", "Voice moderation", ui.kv(("👤 Member", member.mention), ("💬 Channel", after.channel.mention if after.channel else None), ("🛡️ Action", " · ".join(parts))), WARN, author=self.who(member), subject=member.id)
+            await emit(member.guild, "voice", "Voice moderation", ui.kv((f"{E.user} Member", member.mention), (f"{E.chat} Channel", after.channel.mention if after.channel else None), (f"{E.shield} Action", " · ".join(parts))), WARN, author=self.who(member), subject=member.id)
         elif before.self_stream != after.self_stream:
-            await emit(member.guild, "voice", "Started streaming" if after.self_stream else "Stopped streaming", ui.kv(("👤 Member", member.mention), ("💬 Channel", after.channel.mention if after.channel else None)), None, author=self.who(member), subject=member.id)
+            await emit(member.guild, "voice", "Started streaming" if after.self_stream else "Stopped streaming", ui.kv((f"{E.user} Member", member.mention), (f"{E.chat} Channel", after.channel.mention if after.channel else None)), None, author=self.who(member), subject=member.id)
 
     # ------------------------------------------------------- commands ----
 
@@ -798,8 +798,8 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
             pass
         await emit(
             interaction.guild, "commands", f"/{command.qualified_name}",
-            ui.kv(("👤 Used by", interaction.user.mention), ("📍 Channel", interaction.channel.mention if interaction.channel else None),
-                  ("⚙️ Options", ", ".join(options) if options else "None")),
+            ui.kv((f"{E.user} Used by", interaction.user.mention), (f"{E.pin} Channel", interaction.channel.mention if interaction.channel else None),
+                  (f"{E.gear} Options", ", ".join(options) if options else "None")),
             author=self.who(interaction.user), subject=interaction.user.id,
         )
 
@@ -809,27 +809,27 @@ class Logs(commands.GroupCog, group_name="logs", group_description="Server activ
     async def on_scheduled_event_create(self, event: discord.ScheduledEvent) -> None:
         await emit(
             event.guild, "events", "Event created",
-            ui.kv(("📅 Event", event.name), ("🕒 Starts", discord.utils.format_dt(event.start_time, "f") if event.start_time else None),
-                  ("📍 Location", getattr(event, "location", None) or (event.channel.mention if event.channel else None)),
-                  ("👤 By", event.creator.mention if event.creator else None)),
+            ui.kv((f"{E.calendar} Event", event.name), (f"{E.clock} Starts", discord.utils.format_dt(event.start_time, "f") if event.start_time else None),
+                  (f"{E.pin} Location", getattr(event, "location", None) or (event.channel.mention if event.channel else None)),
+                  (f"{E.user} By", event.creator.mention if event.creator else None)),
             SUCCESS,
         )
 
     @commands.Cog.listener()
     async def on_scheduled_event_delete(self, event: discord.ScheduledEvent) -> None:
-        await emit(event.guild, "events", "Event cancelled", ui.kv(("📅 Event", event.name)), DANGER)
+        await emit(event.guild, "events", "Event cancelled", ui.kv((f"{E.calendar} Event", event.name)), DANGER)
 
     @commands.Cog.listener()
     async def on_scheduled_event_update(self, before: discord.ScheduledEvent, after: discord.ScheduledEvent) -> None:
         changes = []
         if before.name != after.name:
-            changes.append(("✏️ Name", f"{before.name} → {after.name}"))
+            changes.append((f"{E.edit} Name", f"{before.name} → {after.name}"))
         if before.start_time != after.start_time:
-            changes.append(("🕒 Starts", discord.utils.format_dt(after.start_time, "f") if after.start_time else None))
+            changes.append((f"{E.clock} Starts", discord.utils.format_dt(after.start_time, "f") if after.start_time else None))
         if before.status != after.status:
-            changes.append(("📊 Status", f"{before.status} → {after.status}"))
+            changes.append((f"{E.chart} Status", f"{before.status} → {after.status}"))
         if changes:
-            await emit(after.guild, "events", "Event updated", ui.kv(("📅 Event", after.name), *changes))
+            await emit(after.guild, "events", "Event updated", ui.kv((f"{E.calendar} Event", after.name), *changes))
 
 
 async def setup(bot: commands.Bot):

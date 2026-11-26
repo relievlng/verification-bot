@@ -13,7 +13,7 @@ from discord.ext import commands, tasks
 import db
 import ui
 from captcha import make_code, make_math, render_captcha
-from common import ACCENT, COLOR, DANGER, INFO, SUCCESS, WARN, UserError, check_can_send, check_role, parse_color, reply
+from common import ACCENT, COLOR, DANGER, INFO, SUCCESS, WARN, UserError, check_can_send, check_role, parse_color, reply, E
 from logutil import emit
 
 log = logging.getLogger("verification-bot")
@@ -59,7 +59,7 @@ def build_panel(guild: discord.Guild, cfg) -> "ui.CardView":
     steps_text = "\n".join(f"**{i}.** {s}" for i, s in enumerate(steps, 1))
     description = (cfg["panel_text"] or DEFAULT_PANEL) + f"\n\n**How it works**\n{steps_text}"
     return ui.card_builder(
-        cfg["panel_title"] or "✅ Verify to join",
+        cfg["panel_title"] or f"{E.check} Verify to join",
         description,
         color=color,
         footer=f"{guild.name} - Verification",
@@ -70,7 +70,7 @@ def build_panel(guild: discord.Guild, cfg) -> "ui.CardView":
 
 def success_embed(guild: discord.Guild, role: discord.Role) -> "ui.CardView":
     return ui.card(
-        "✅ You're verified!",
+        f"{E.check} You're verified!",
         f"Welcome to **{guild.name}**! You now have {role.mention} and can see the rest of the server.",
         color=SUCCESS,
         footer=f"{guild.name} - Verification",
@@ -252,11 +252,11 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
             f"**Kick if unverified** - After {cfg['kick_after_minutes']} min" if cfg["kick_after_minutes"] else "**Kick if unverified** - Off",
             f"**Wrong answers** - {cfg['max_attempts']} allowed, then a 10 min lockout",
             f"**Raid auto-lockdown** - {cfg['raid_threshold']} joins/min" if cfg["raid_threshold"] else "**Raid auto-lockdown** - Off",
-            f"**Lockdown** - {'🔒 ON, verification paused' if cfg['lockdown'] else 'Off'}",
+            f"**Lockdown** - {f'{E.lock} ON, verification paused' if cfg['lockdown'] else 'Off'}",
             f"**Button label** - {cfg['button_label'] or 'Verify'}",
         ]
         return ui.card(
-            "⚙️ Verification settings",
+            f"{E.gear} Verification settings",
             "\n".join(lines),
             color=WARN if cfg["lockdown"] else COLOR,
             guild=guild,
@@ -294,20 +294,20 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
             await reply(interaction, view=simple("Something's wrong", "The verified role no longer exists. Please tell an admin.", DANGER))
             return None
         if role in member.roles:
-            await reply(interaction, view=simple("Already verified 🎉", f"You already have {role.mention}. Enjoy the server!", SUCCESS))
+            await reply(interaction, view=simple(f"Already verified {E.gift}", f"You already have {role.mention}. Enjoy the server!", SUCCESS))
             return None
         if cfg["lockdown"]:
-            await reply(interaction, view=simple("🔒 Verification paused", "Verification is temporarily paused. Please try again later or contact a moderator.", WARN))
+            await reply(interaction, view=simple(f"{E.lock} Verification paused", "Verification is temporarily paused. Please try again later or contact a moderator.", WARN))
             return None
         min_days = cfg["min_account_age_days"]
         if min_days and (discord.utils.utcnow() - member.created_at).days < min_days:
-            await self.log_event(guild, cfg, "⛔ Account too new", f"{member.mention} tried to verify but their account is under {min_days} day(s) old.", WARN, subject=member.id)
+            await self.log_event(guild, cfg, f"{E.ban} Account too new", f"{member.mention} tried to verify but their account is under {min_days} day(s) old.", WARN, subject=member.id)
             await reply(interaction, view=simple("Account too new", f"Your Discord account needs to be at least **{min_days} day(s)** old to verify here. Please try again later or contact a moderator.", WARN))
             return None
         wait = self.locked_for(guild.id, member.id)
         if wait > 0:
             until = discord.utils.format_dt(discord.utils.utcnow() + timedelta(seconds=wait), "R")
-            await reply(interaction, view=simple("⏳ Locked out", f"Too many wrong answers. You can try again {until}.", WARN))
+            await reply(interaction, view=simple(f"{E.hourglass} Locked out", f"Too many wrong answers. You can try again {until}.", WARN))
             return None
         return cfg, role
 
@@ -318,7 +318,7 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
         cfg, role = pre
         rules = await self.effective_rules(interaction.guild_id, cfg)
         if rules:
-            embed = ui.card("📜 Server rules", rules, footer="Step 1: read and agree, then you'll get a quick check")
+            embed = ui.card(f"{E.scroll} Server rules", rules, footer="Step 1: read and agree, then you'll get a quick check")
             return await reply(interaction, view=embed.with_view(RulesGate(self)))
         await self.run_challenge(interaction, cfg, role)
 
@@ -352,8 +352,8 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
         file = discord.File(render_captcha(code), filename="captcha.png")
         expires = discord.utils.format_dt(discord.utils.utcnow() + timedelta(seconds=CHALLENGE_SECONDS), "R")
         card = ui.card(
-            "🔐 Type the code",
-            f"Enter the characters from the image (not case-sensitive).\n⏳ Expires {expires}\n\n-# Attempts left: {left} - Can't read it? Press New code",
+            f"{E.lock} Type the code",
+            f"Enter the characters from the image (not case-sensitive).\n{E.hourglass} Expires {expires}\n\n-# Attempts left: {left} - Can't read it? Press New code",
             color=INFO,
             image="attachment://captcha.png",
             section="Verification",
@@ -368,8 +368,8 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
         cfg = await db.get_config(interaction.guild_id)
         rules = await self.effective_rules(interaction.guild_id, cfg)
         if not rules:
-            return await reply(interaction, view=simple("📜 Rules", "No rules have been set yet.", INFO))
-        await reply(interaction, view=ui.card("📜 Server rules", rules, guild=interaction.guild))
+            return await reply(interaction, view=simple(f"{E.scroll} Rules", "No rules have been set yet.", INFO))
+        await reply(interaction, view=ui.card(f"{E.scroll} Server rules", rules, guild=interaction.guild))
 
     async def show_help(self, interaction: discord.Interaction):
         cfg = await db.get_config(interaction.guild_id)
@@ -395,17 +395,17 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
         wait = self.locked_for(guild.id, member.id)
         if wait > 0:
             until = discord.utils.format_dt(discord.utils.utcnow() + timedelta(seconds=wait), "R")
-            return await reply(interaction, view=simple("⏳ Locked out", f"Too many wrong answers. Try again {until}.", WARN))
+            return await reply(interaction, view=simple(f"{E.hourglass} Locked out", f"Too many wrong answers. Try again {until}.", WARN))
         if cfg["lockdown"]:
-            return await reply(interaction, view=simple("🔒 Verification paused", "Verification is temporarily paused. Try again later.", WARN))
+            return await reply(interaction, view=simple(f"{E.lock} Verification paused", "Verification is temporarily paused. Try again later.", WARN))
         if correct:
             return await self.complete(interaction, cfg, role, method)
         remaining = self.register_failure(guild.id, member.id, cfg["max_attempts"])
         if remaining == 0:
-            await self.log_event(guild, cfg, "🚫 Verification lockout", f"{member.mention} failed {cfg['max_attempts']} times and is locked out for 10 minutes.", WARN, subject=member.id)
+            await self.log_event(guild, cfg, f"{E.ban} Verification lockout", f"{member.mention} failed {cfg['max_attempts']} times and is locked out for 10 minutes.", WARN, subject=member.id)
             until = discord.utils.format_dt(discord.utils.utcnow() + timedelta(seconds=LOCKOUT_SECONDS), "R")
-            return await reply(interaction, view=simple("🚫 Too many wrong answers", f"You're locked out. You can try again {until}.", DANGER))
-        await reply(interaction, view=simple("❌ Not quite", f"**{remaining}** attempt(s) left. Press **Verify** on the panel to get a fresh challenge.", DANGER))
+            return await reply(interaction, view=simple(f"{E.ban} Too many wrong answers", f"You're locked out. You can try again {until}.", DANGER))
+        await reply(interaction, view=simple(f"{E.cross} Not quite", f"**{remaining}** attempt(s) left. Press **Verify** on the panel to get a fresh challenge.", DANGER))
 
     async def complete(self, interaction: discord.Interaction, cfg, role: discord.Role, method: str):
         guild, member = interaction.guild, interaction.user
@@ -416,7 +416,7 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
                 if unverified and unverified in member.roles:
                     await member.remove_roles(unverified, reason="Passed verification")
         except discord.Forbidden:
-            await self.log_event(guild, cfg, "⚠️ Couldn't assign role", f"I failed to give {role.mention} to {member.mention}. Move my role above it.", DANGER, subject=member.id)
+            await self.log_event(guild, cfg, f"{E.warn} Couldn't assign role", f"I failed to give {role.mention} to {member.mention}. Move my role above it.", DANGER, subject=member.id)
             return await reply(interaction, view=simple("Couldn't give you the role", "Something's wrong with my permissions. Please tell an admin.", DANGER))
 
         self.failures.pop((guild.id, member.id), None)
@@ -425,7 +425,7 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
             (guild.id, member.id, method, discord.utils.utcnow().isoformat()),
         )
         await reply(interaction, view=success_embed(guild, role))
-        await self.log_event(guild, cfg, "✅ Member verified", f"{member.mention} verified ({method}).", subject=member.id)
+        await self.log_event(guild, cfg, f"{E.check} Member verified", f"{member.mention} verified ({method}).", subject=member.id)
         self.bot.dispatch("member_verified", member)
 
     # ----------------------------------------------------------- events ----
@@ -455,7 +455,7 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
             if len(recent) >= threshold and not cfg["lockdown"]:
                 await db.upsert_config(member.guild.id, lockdown=1)
                 await self.log_event(
-                    member.guild, cfg, "🚨 Possible raid detected",
+                    member.guild, cfg, f"{E.alert} Possible raid detected",
                     f"{len(recent)} members joined in under a minute. **Verification is now paused.**\n"
                     "Run `/verify lockdown enabled:False` when it's safe.", DANGER,
                 )
@@ -522,7 +522,7 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
         await interaction.response.defer(ephemeral=True)
         cfg = await self.apply_setup(interaction.guild, channel, role, method.value if method else None, unverified_role)
         await interaction.followup.send(
-            f"✅ Verification is live in {channel.mention}.\n"
+            f"{E.check} Verification is live in {channel.mention}.\n"
             f"**Next:** hide your other channels from @everyone and allow {role.mention}. "
             "Make it yours with `/verify panel`, write your rules with `/rules edit`, and turn on logs with `/logs setup`.",
             view=self.status_embed(interaction.guild, cfg, bool(await self.effective_rules(interaction.guild_id, cfg))), ephemeral=True,
@@ -571,7 +571,7 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
         await db.upsert_config(interaction.guild_id, **updates)
         cfg = await db.get_config(interaction.guild_id)
         message = await self.post_panel(interaction.guild, cfg)
-        await interaction.followup.send(f"✅ Panel updated: {message.jump_url}", ephemeral=True)
+        await interaction.followup.send(f"{E.check} Panel updated: {message.jump_url}", ephemeral=True)
 
     @app_commands.command(description="Preview how the verify panel looks (only you see it)")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -640,7 +640,7 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
         cfg = await db.get_config(guild.id)
         if method and cfg["panel_message_id"]:
             await self.post_panel(guild, cfg)  # the 'How it works' steps depend on the method
-        await interaction.followup.send("\n".join(["✅ Settings saved."] + notes), view=self.status_embed(guild, cfg, bool(await self.effective_rules(guild.id, cfg))), ephemeral=True)
+        await interaction.followup.send("\n".join([f"{E.check} Settings saved."] + notes), view=self.status_embed(guild, cfg, bool(await self.effective_rules(guild.id, cfg))), ephemeral=True)
 
     @app_commands.command(description="Show the current verification settings")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -658,7 +658,7 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
             raise UserError("Verification isn't set up. Use `/verify setup`.")
         await interaction.response.defer(ephemeral=True)
         message = await self.post_panel(interaction.guild, cfg)
-        await interaction.followup.send(f"✅ Panel re-posted: {message.jump_url}", ephemeral=True)
+        await interaction.followup.send(f"{E.check} Panel re-posted: {message.jump_url}", ephemeral=True)
 
     @app_commands.command(description="Pause or resume verification (use during a raid)")
     @app_commands.describe(enabled="True = pause verification, False = resume")
@@ -668,9 +668,9 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
         if not cfg or not cfg["verified_role_id"]:
             raise UserError("Verification isn't set up. Use `/verify setup`.")
         await db.upsert_config(interaction.guild_id, lockdown=int(enabled))
-        await self.log_event(interaction.guild, cfg, "🔒 Lockdown enabled" if enabled else "🔓 Lockdown lifted", "Verification is " + ("locked: nobody new can verify." if enabled else "open again."), WARN if enabled else COLOR, actor=interaction.user)
+        await self.log_event(interaction.guild, cfg, f"{E.lock} Lockdown enabled" if enabled else f"{E.unlock} Lockdown lifted", "Verification is " + ("locked: nobody new can verify." if enabled else "open again."), WARN if enabled else COLOR, actor=interaction.user)
         await interaction.response.send_message(
-            "🔒 Verification is **paused**. Nobody can verify until you run this again with `enabled: False`." if enabled else "🔓 Verification is **back on**.",
+            f"{E.lock} Verification is **paused**. Nobody can verify until you run this again with `enabled: False`." if enabled else f"{E.unlock} Verification is **back on**.",
             ephemeral=True,
         )
 
@@ -692,9 +692,9 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
             "INSERT INTO verifications (guild_id, user_id, method, verified_at) VALUES (?, ?, ?, ?)",
             (guild.id, member.id, "manual", discord.utils.utcnow().isoformat()),
         )
-        await self.log_event(guild, cfg, "🛠️ Manually verified", f"{member.mention} was verified by staff.", subject=member.id, actor=interaction.user)
+        await self.log_event(guild, cfg, f"{E.tool} Manually verified", f"{member.mention} was verified by staff.", subject=member.id, actor=interaction.user)
         self.bot.dispatch("member_verified", member)
-        await interaction.response.send_message(f"✅ Verified {member.mention}.", ephemeral=True)
+        await interaction.response.send_message(f"{E.check} Verified {member.mention}.", ephemeral=True)
 
     @app_commands.command(description="Remove a member's verified status")
     @app_commands.checks.has_permissions(manage_roles=True)
@@ -742,7 +742,7 @@ class Verification(commands.GroupCog, group_name="verify", group_description="Me
         humans = [m for m in guild.members if not m.bot]
         unverified = sum(1 for m in humans if role and role not in m.roles)
 
-        embed = ui.card("📈 Verification stats", color=COLOR, section="Verification")
+        embed = ui.card(f"{E.chart} Verification stats", color=COLOR, section="Verification")
         embed.add_field(name="All time", value=f"**{total:,}**")
         embed.add_field(name="Last 24 hours", value=f"**{day_count:,}**")
         embed.add_field(name="Last 7 days", value=f"**{len(week_rows):,}**")

@@ -7,7 +7,7 @@ from discord.ext import commands
 import db
 import ui
 from cogs.verify import MODES
-from common import COLOR, UserError, check_can_send, check_role
+from common import COLOR, UserError, check_can_send, check_role, E
 
 
 class Setup(commands.Cog):
@@ -52,26 +52,26 @@ class Setup(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         lines = []
         cfg = await verify.apply_setup(guild, verify_channel, verified_role, method.value if method else None, None)
-        lines.append(f"✅ **Verification:** panel posted in {verify_channel.mention} (gives {verified_role.mention})")
+        lines.append(f"{E.check} **Verification:** panel posted in {verify_channel.mention} (gives {verified_role.mention})")
 
         if all_logs:
             logs_cog = self.bot.get_cog("Logs")
             if logs_cog is None:
                 raise UserError("The logs module isn't loaded.")
             made, _ = await logs_cog.run_full_setup(guild, interaction.user)
-            lines.append(f"✅ **Logs:** everything is on, with {len(made)} private channels created in 📋 Logs")
+            lines.append(f"{E.check} **Logs:** everything is on, with {len(made)} private channels created in {E.clipboard} Logs")
         elif log_channel:
             await db.upsert_config(guild.id, log_channel_id=log_channel.id)
-            lines.append(f"✅ **Logs:** sent to {log_channel.mention}")
+            lines.append(f"{E.check} **Logs:** sent to {log_channel.mention}")
         if welcome_channel:
             existing = await db.get_welcome(guild.id)
             updates = {"enabled": 1, "channel_id": welcome_channel.id}
             if existing is None:
                 updates["style"] = "card"
             await db.upsert_welcome(guild.id, **updates)
-            lines.append(f"✅ **Welcome:** cards go to {welcome_channel.mention}")
+            lines.append(f"{E.check} **Welcome:** cards go to {welcome_channel.mention}")
 
-        embed = ui.card("🎉 You're set up!", "\n".join(lines), color=COLOR, section="Setup")
+        embed = ui.card(f"{E.gift} You're set up!", "\n".join(lines), color=COLOR, section="Setup")
         embed.add_field(
             name="Do these next",
             value=(
