@@ -36,6 +36,7 @@ _EMOJI_IDS = {
     "folder": 0, "home": 0, "idea": 0, "refresh": 0, "sound": 0, "mute": 0, "trophy": 0,
     "search": 0, "fire": 0, "flag": 0, "clean": 0, "door": 0, "clipboard": 0, "id": 0,
     "hashtag": 0, "scale": 0, "seed": 0, "save": 0, "bug": 0, "inbox": 0, "outbox": 0,
+    "palette": 0, "droplet": 0,
 }
 # Fallbacks use only well-supported Geometric Shapes / Dingbats glyphs so they
 # render as clean monochrome marks on Discord (no broken boxes) before the custom
@@ -55,6 +56,7 @@ _EMOJI_FALLBACK = {
     "sound": "◀", "mute": "◁", "trophy": "▲", "search": "○", "fire": "▲", "flag": "▸",
     "clean": "✗", "door": "▯", "clipboard": "▦", "id": "▭", "hashtag": "#", "scale": "◆",
     "seed": "○", "save": "▤", "bug": "◈", "inbox": "▽", "outbox": "△",
+    "palette": "◐", "droplet": "●",
 }
 
 
@@ -105,6 +107,7 @@ _RAW_TO_NAME = {"✅": "check", "❌": "cross", "⚠": "warn", "ℹ": "info", "�
     "🏅": "trophy", "🔍": "search", "🔎": "search", "🕵": "search", "🔥": "fire", "🚩": "flag",
     "🏁": "flag", "🧹": "clean", "🚪": "door", "📋": "clipboard", "🆔": "id", "🔢": "hashtag",
     "⚖": "scale", "🌱": "seed", "💾": "save", "🐛": "bug", "📥": "inbox", "📤": "outbox",
+    "🎨": "palette", "🩸": "droplet", "💧": "droplet",
 }
 
 

@@ -104,20 +104,31 @@ class CardView(discord.ui.LayoutView):
             banner.add_item(media=banner_url)
             children.append(banner)
 
+        # Split a trailing footer (-# …) off so it sits under a divider: a cleaner,
+        # more modern card. The main text stays the first TextDisplay, so every other
+        # compat shim keeps finding it.
+        main_text, footer_text = self._split_footer(text_content)
+
         if thumbnail_url:
             # Use a Section with Thumbnail accessory for the top part
             section = discord.ui.Section(
-                discord.ui.TextDisplay(text_content),
+                discord.ui.TextDisplay(main_text),
                 accessory=discord.ui.Thumbnail(thumbnail_url),
             )
             children.append(section)
         else:
-            children.append(discord.ui.TextDisplay(text_content))
+            children.append(discord.ui.TextDisplay(main_text))
 
         if image_url:
             gallery = discord.ui.MediaGallery()
             gallery.add_item(media=image_url)
             children.append(gallery)
+
+        self._footer_td = None
+        if footer_text:
+            children.append(discord.ui.Separator())
+            self._footer_td = discord.ui.TextDisplay(footer_text)
+            children.append(self._footer_td)
 
         self.container = discord.ui.Container(*children, accent_color=accent)
         self.add_item(self.container)
@@ -125,6 +136,14 @@ class CardView(discord.ui.LayoutView):
         # Extra interactive items go inside the container, so they render within the card
         if extra_views:
             self._add_rows(extra_views)
+
+    @staticmethod
+    def _split_footer(text: str) -> "tuple[str, Optional[str]]":
+        """Separate a trailing '-# …' footer paragraph from the rest of the card text."""
+        paras = (text or "").split("\n\n")
+        if len(paras) >= 2 and paras[-1].startswith("-# "):
+            return "\n\n".join(paras[:-1]), paras[-1]
+        return text, None
 
     def _add_rows(self, items) -> None:
         """Pack interactive items into ActionRows inside the container, so buttons and
@@ -203,7 +222,13 @@ class CardView(discord.ui.LayoutView):
         return self
 
     def set_footer(self, *, text: str, icon_url: Optional[str] = None) -> "CardView":
-        self._append_text(f"-# {text}")
+        footer = f"-# {text}"
+        if getattr(self, "_footer_td", None) is not None:
+            self._footer_td.content = footer
+        else:
+            self.container.add_item(discord.ui.Separator())
+            self._footer_td = discord.ui.TextDisplay(footer)
+            self.container.add_item(self._footer_td)
         return self
 
     def set_thumbnail(self, *, url: str) -> "CardView":
