@@ -91,11 +91,18 @@ class CardView(discord.ui.LayoutView):
         color: discord.Color | int = COLOR,
         thumbnail_url: Optional[str] = None,
         image_url: Optional[str] = None,
+        banner_url: Optional[str] = None,
         extra_views: Optional[list] = None,
     ):
         super().__init__()
         accent = color if isinstance(color, discord.Color) else discord.Color(color)
         children: list = []
+
+        if banner_url:
+            # A wide image across the top of the card (above the title).
+            banner = discord.ui.MediaGallery()
+            banner.add_item(media=banner_url)
+            children.append(banner)
 
         if thumbnail_url:
             # Use a Section with Thumbnail accessory for the top part
@@ -136,6 +143,25 @@ class CardView(discord.ui.LayoutView):
             width += w
         if row_items:
             self.container.add_item(discord.ui.ActionRow(*row_items))
+
+    def add_separator(self) -> "CardView":
+        """A thin divider line inside the card."""
+        try:
+            self.container.add_item(discord.ui.Separator())
+        except Exception:
+            pass
+        return self
+
+    def add_section(self, text: str, accessory) -> "CardView":
+        """A row inside the card: markdown text on the left, an accessory on the right.
+        The accessory is a Button (an action per row) or a Thumbnail (a small image)."""
+        self.container.add_item(discord.ui.Section(discord.ui.TextDisplay(text), accessory=accessory))
+        return self
+
+    def add_text(self, text: str) -> "CardView":
+        """Append a standalone markdown block to the bottom of the card."""
+        self.container.add_item(discord.ui.TextDisplay(text))
+        return self
 
     def with_view(self, other: "discord.ui.View | None") -> "CardView":
         """Merge another View's interactive items (buttons, selects) into this card.

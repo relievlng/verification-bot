@@ -204,6 +204,26 @@ class PanelButtonView(discord.ui.View):
         await self.cog.safe(interaction, self.cog.on_panel_choice(interaction, None))
 
 
+class OpenTypeButton(discord.ui.DynamicItem[discord.ui.Button], template=r"ticket:opentype:(?P<tid>[0-9]+)"):
+    """Routes the per-category buttons in the panel. Each panel row's button carries
+    custom_id ticket:opentype:<type id>; this catches the click (even after a restart,
+    with no live view) and opens that type through the normal panel-choice flow."""
+
+    def __init__(self, tid: int):
+        super().__init__(discord.ui.Button(label="Open", custom_id=f"ticket:opentype:{tid}"))
+        self.tid = tid
+
+    @classmethod
+    async def from_custom_id(cls, interaction: discord.Interaction, item: discord.ui.Button, match, /):
+        return cls(int(match["tid"]))
+
+    async def callback(self, interaction: discord.Interaction):
+        cog = interaction.client.get_cog("Tickets")
+        if cog is None:
+            return await interaction.response.send_message("Tickets aren't available right now.", ephemeral=True)
+        await cog.safe(interaction, cog.on_panel_choice(interaction, str(self.tid)))
+
+
 class ChooseTypeView(discord.ui.View):
     """Fallback shown privately when the panel has several types but a plain button was pressed."""
 
@@ -357,7 +377,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         self.bot.add_view(PanelSelectView(self))
         self.bot.add_view(PanelButtonView(self))
         self.bot.add_view(TicketControls(self))
-        self.bot.add_dynamic_items(RateButton, CommentButton, ProductReviewButton)
+        self.bot.add_dynamic_items(RateButton, CommentButton, ProductReviewButton, OpenTypeButton)
         rows = await db.fetch_all("SELECT id, channel_id FROM tickets WHERE status = 'open' AND channel_id IS NOT NULL")
         self.channels = {r["channel_id"]: r["id"] for r in rows}
         self.sweeper.start()
@@ -474,25 +494,38 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             for t in types
         ]
 
-    def build_panel(self, guild: discord.Guild, cfg, types) -> tuple[discord.Embed, discord.ui.View]:
+    def build_panel(self, guild: discord.Guild, cfg, types) -> tuple["ui.CardView", None]:
+        """The ticket panel: a banner, title, then one row per ticket type with a button
+        on the right (Components V2 Sections). The buttons route via OpenTypeButton, so
+        the panel is one self-contained card and needs no separate view."""
         types = self.open_types(types)
         color = int(cfg["panel_color"], 16) if cfg["panel_color"] else COLOR.value
-        embed = ui.card(cfg["panel_title"] or f"{E.ticket} Need help?", cfg["panel_text"] or "Open a private ticket and our team will get back to you as soon as they can.", color=color, section="Tickets")
-        if len(types) > 1:
-            embed.add_field(
-                name="Ticket types",
-                value="\n".join(f"{themed(t['emoji']) or E.ticket} **{t['name']}**: {t['description'] or ''}".rstrip(": ") for t in types),
-                inline=False,
+        title = cfg["panel_title"] or f"{E.ticket} Need help?"
+        desc = cfg["panel_text"] or "Open a private ticket and our team will get back to you as soon as they can."
+        banner = cfg["panel_image"] or None
+        card = ui.CardView(
+            f"## {title}\n{desc}",
+            color=color,
+            banner_url=banner,
+            thumbnail_url=(str(guild.icon.url) if guild.icon and not banner else None),
+        )
+        card.add_separator()
+        single = len(types) == 1
+        for t in types:
+            label = (f"Open a {t['name']} ticket" if single else (t["name"] or "Open a ticket"))[:80]
+            button = discord.ui.Button(
+                label=label,
+                emoji=themed_component(t["emoji"]),
+                style=discord.ButtonStyle.primary if single else discord.ButtonStyle.secondary,
+                custom_id=f"ticket:opentype:{t['id']}",
             )
-        if guild.icon:
-            embed.set_thumbnail(url=guild.icon.url)
-        if cfg["panel_image"]:
-            embed.set_image(url=cfg["panel_image"])
-        embed.set_footer(text=f"{guild.name} · Support")
-        if len(types) > 1:
-            return embed, PanelSelectView(self, self.type_options(types))
-        only = types[0]
-        return embed, PanelButtonView(self, f"Open a {only['name']} ticket" if only["name"] else "Open a ticket", themed_component(only["emoji"]) or "🎫")
+            row = f"{themed(t['emoji']) or E.ticket} **{t['name']}**"
+            if t["description"]:
+                row += f"\n{t['description']}"
+            card.add_section(row, button)
+        card.add_separator()
+        card.add_text(f"-# {guild.name} · Support")
+        return card, None
 
     async def delete_panel(self, guild: discord.Guild, cfg) -> None:
         if not cfg or not cfg["panel_channel_id"] or not cfg["panel_message_id"]:
@@ -551,12 +584,6 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             await interaction.response.send_modal(ApplicationModal(self, chosen))
             return
         await reply(interaction, view=simple(f"{E.ticket} {chosen['name']}", "Which macro do you need help with?", INFO).with_view(MacroPickView(self, chosen)))
-        # Reset the dropdown so the same option can be picked again (best effort)
-        if interaction.message is not None and interaction.message.id == cfg["panel_message_id"] and len(types) > 1:
-            try:
-                await interaction.message.edit(view=PanelSelectView(self, self.type_options(types)))
-            except discord.HTTPException:
-                pass
 
     # ----------------------------------------------------- ticket life ----
 
