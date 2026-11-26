@@ -13,7 +13,7 @@ from discord.ext import commands, tasks
 
 import db
 import ui
-from common import ACCENT, COLOR, DANGER, INFO, LINK_RE, SUCCESS, WARN, UserError, check_can_send, is_staff, parse_color, reply, staff_ids, support_button, v2, E
+from common import ACCENT, COLOR, DANGER, INFO, LINK_RE, SUCCESS, WARN, UserError, check_can_send, is_staff, parse_color, reply, staff_ids, support_button, themed, themed_component, v2, E
 from cogs.reviews import ProductReviewButton, add_ticket_review_comment, post_ticket_review, product_channel_id, staff_channel_id
 from logutil import emit
 from macros import MACROS, macro_label, macro_name
@@ -401,7 +401,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
 
     async def render_embed(self, guild: discord.Guild, t) -> discord.Embed:
         ttype = await db.fetch_one("SELECT * FROM ticket_types WHERE guild_id = ? AND name = ?", (guild.id, t["type_name"]))
-        emoji = f"{ttype['emoji']} " if ttype and ttype["emoji"] else ""
+        emoji = f"{themed(ttype['emoji'])} " if ttype and ttype["emoji"] else ""
         p_emoji, p_label = PRIORITIES.get(t["priority"], PRIORITIES["normal"])
         if t["status"] != "open":
             status = f"{E.lock} Closed"
@@ -470,7 +470,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
 
     def type_options(self, types) -> list:
         return [
-            discord.SelectOption(label=t["name"][:100], value=str(t["id"]), description=(t["description"] or "")[:100] or None, emoji=t["emoji"] or None)
+            discord.SelectOption(label=t["name"][:100], value=str(t["id"]), description=(t["description"] or "")[:100] or None, emoji=themed_component(t["emoji"]))
             for t in types
         ]
 
@@ -481,7 +481,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         if len(types) > 1:
             embed.add_field(
                 name="Ticket types",
-                value="\n".join(f"{t['emoji'] or '🎫'} **{t['name']}**: {t['description'] or ''}".rstrip(": ") for t in types),
+                value="\n".join(f"{themed(t['emoji']) or E.ticket} **{t['name']}**: {t['description'] or ''}".rstrip(": ") for t in types),
                 inline=False,
             )
         if guild.icon:
@@ -492,7 +492,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         if len(types) > 1:
             return embed, PanelSelectView(self, self.type_options(types))
         only = types[0]
-        return embed, PanelButtonView(self, f"Open a {only['name']} ticket" if only["name"] else "Open a ticket", only["emoji"] or "🎫")
+        return embed, PanelButtonView(self, f"Open a {only['name']} ticket" if only["name"] else "Open a ticket", themed_component(only["emoji"]) or "🎫")
 
     async def delete_panel(self, guild: discord.Guild, cfg) -> None:
         if not cfg or not cfg["panel_channel_id"] or not cfg["panel_message_id"]:
@@ -1037,7 +1037,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
         embed.add_field(name="Ping staff", value="On" if cfg["ping_staff"] else "Off")
         embed.add_field(name="DM transcript", value="On" if cfg["dm_transcript"] else "Off")
         embed.add_field(name="Ask for rating", value="On" if cfg["ask_rating"] else "Off")
-        embed.add_field(name="Ticket types", value=", ".join(f"{t['emoji'] or ''}{t['name']}" for t in types) or "None", inline=False)
+        embed.add_field(name="Ticket types", value=", ".join(f"{themed(t['emoji'])} {t['name']}".strip() for t in types) or "None", inline=False)
         embed.add_field(name="Message text in transcripts", value=f"{E.check} Included" if self.bot.intents.message_content else f"{E.warn} Off (needs Message Content Intent)", inline=False)
         await interaction.response.send_message((f"{E.check} Saved.\n" if updates else ""), view=embed, ephemeral=True)
 
@@ -1201,7 +1201,7 @@ class Tickets(commands.GroupCog, group_name="ticket", group_description="Private
             if t["kind"] == "application":
                 return f" · {E.clipboard} application " + ("🟢 open" if t["app_open"] else "🔴 closed")
             return " · asks for Invoice ID" if t["needs_invoice"] else ""
-        lines = [f"{t['emoji'] or '🎫'} **{t['name']}**{tag(t)}\n{t['description'] or ''}" for t in types]
+        lines = [f"{themed(t['emoji']) or E.ticket} **{t['name']}**{tag(t)}\n{t['description'] or ''}" for t in types]
         await interaction.response.send_message(view=ui.card(f"{E.ticket} Ticket types", "\n\n".join(lines), color=INFO, section="Tickets"), ephemeral=True)
 
     @app_commands.command(description="Stop someone from opening tickets")

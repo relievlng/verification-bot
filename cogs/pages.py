@@ -13,7 +13,7 @@ from discord.ext import commands
 
 import db
 import ui
-from common import COLOR, SUCCESS, WARN, UserError, parse_color, E
+from common import COLOR, SUCCESS, WARN, UserError, parse_color, themed, E
 from fileutil import public_base_url
 from logutil import emit
 
@@ -118,7 +118,7 @@ async def render(guild: discord.Guild, row) -> dict:
     out: dict = {}
     image = await load_image(row)
     image_url = f"attachment://{image[0]}" if image else (row["image_url"] or None)
-    embed = ui.card(f"{kind['icon']}  {shown}", body, color=int(row["color"], 16) if row["color"] else COLOR, guild=guild, footer=footer, image=image_url)
+    embed = ui.card(f"{themed(kind['icon'])}  {shown}", body, color=int(row["color"], 16) if row["color"] else COLOR, guild=guild, footer=footer, image=image_url)
     if image:
         out["file"] = discord.File(io.BytesIO(image[1]), filename=image[0])
     out["embed"] = embed

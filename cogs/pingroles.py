@@ -8,7 +8,7 @@ from discord.ext import commands
 
 import db
 import ui
-from common import SUCCESS, WARN, UserError, E
+from common import SUCCESS, WARN, UserError, themed, themed_component, E
 from logutil import emit
 
 log = logging.getLogger("verification-bot")
@@ -51,12 +51,12 @@ class PingToggle(discord.ui.DynamicItem[discord.ui.Button], template=r"pingrole:
 def panel_view(items: list) -> discord.ui.View:
     view = discord.ui.View(timeout=None)
     for r in items[:25]:
-        view.add_item(PingToggle(r["key"], r["name"], r["emoji"]))
+        view.add_item(PingToggle(r["key"], r["name"], themed_component(r["emoji"])))
     return view
 
 
 def panel_embed(guild: discord.Guild, items: list) -> discord.Embed:
-    lines = [f"{r['emoji'] or '🔔'} **{r['name']}**\n　{r['description'] or ''}" for r in items]
+    lines = [f"{themed(r['emoji']) or E.bell} **{r['name']}**\n　{r['description'] or ''}" for r in items]
     return ui.card(f"{E.bell} Pick your pings", "Press a button to get pinged for that. Press it again to stop.\n\n" + "\n".join(lines), guild=guild, section="Ping roles")
 
 
@@ -153,7 +153,7 @@ class PingRoles(commands.GroupCog, group_name="pingroles", group_description="Ro
             await self.refresh_panel(guild)
             note = "\n\nUse `/pingroles panel` to post the sign-up panel in a channel."
         items = await rows(guild.id)
-        body = f"**{len(items)}** ping roles are ready ({made} new).\n\n" + "\n".join(f"{r['emoji']} <@&{r['role_id']}>" for r in items) + f"\n\n{E.gift} The **Giveaways** role is now pinged automatically when a giveaway starts." + note
+        body = f"**{len(items)}** ping roles are ready ({made} new).\n\n" + "\n".join(f"{themed(r['emoji'])} <@&{r['role_id']}>" for r in items) + f"\n\n{E.gift} The **Giveaways** role is now pinged automatically when a giveaway starts." + note
         await interaction.followup.send(view=ui.card(f"{E.check} Ping roles ready", body, color=SUCCESS, guild=guild, section="Ping roles"), ephemeral=True)
 
     @app_commands.command(description="Post (or refresh) the sign-up panel where members pick their pings")
@@ -216,7 +216,7 @@ class PingRoles(commands.GroupCog, group_name="pingroles", group_description="Ro
         for r in items:
             role = interaction.guild.get_role(r["role_id"]) if r["role_id"] else None
             count = len(getattr(role, "members", [])) if role else 0
-            lines.append(f"{r['emoji'] or '🔔'} `{r['key']}` · {role.mention if role else '*role deleted*'} · **{count:,}** members")
+            lines.append(f"{themed(r['emoji']) or E.bell} `{r['key']}` · {role.mention if role else '*role deleted*'} · **{count:,}** members")
         await interaction.response.send_message(view=ui.card(f"{E.bell} Ping roles", "\n".join(lines), guild=interaction.guild, section="Ping roles"), ephemeral=True)
 
     @app_commands.command(description="Send an announcement that pings one of the ping roles")
@@ -236,7 +236,7 @@ class PingRoles(commands.GroupCog, group_name="pingroles", group_description="Ro
         if not (role.mentionable or guild.me.guild_permissions.mention_everyone):
             raise UserError(f"I can't ping {role.mention} because it isn't mentionable. Turn on *Allow anyone to @mention this role*.")
         target = channel or interaction.channel
-        card = ui.card(f"{row['emoji'] or '🔔'}  {title or row['name']}", message, guild=guild, image=image_url, footer=f"{row['name']} · {guild.name}")
+        card = ui.card(f"{themed(row['emoji']) or E.bell}  {title or row['name']}", message, guild=guild, image=image_url, footer=f"{row['name']} · {guild.name}")
         await target.send(content=role.mention, view=card, allowed_mentions=discord.AllowedMentions(roles=[role], users=False, everyone=False))
         await interaction.response.send_message(view=ui.card(f"{E.check} Sent", f"Pinged {role.mention} in {target.mention}.", color=SUCCESS), ephemeral=True)
         await emit(guild, "posts", "Announcement sent", ui.kv((f"{E.bell} Pinged", role.mention), (f"{E.pin} Channel", target.mention), (f"{E.note} Title", title or row["name"]), (f"{E.shield} By", interaction.user.mention)), subject=interaction.user.id)

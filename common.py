@@ -83,6 +83,53 @@ def resolve_emojis(emojis) -> int:
             found += 1
     return found
 
+
+# Reverse map so stored/config emojis (admin-set ticket types, shop items, seeded
+# defaults) join the theme too. Keys are base forms with any VS16 selector stripped.
+_RAW_TO_NAME = {"✅": "check", "❌": "cross", "⚠": "warn", "ℹ": "info", "🚨": "alert", "⭐": "star",
+    "★": "star", "🎫": "ticket", "👑": "crown", "🔒": "lock", "🔐": "lock", "🔓": "unlock",
+    "🔑": "key", "🛍": "shop", "🛒": "cart", "🎉": "gift", "🎁": "gift", "👋": "wave",
+    "🤖": "bot", "📍": "pin", "📌": "tack", "🕒": "clock", "⏰": "clock", "🕐": "clock",
+    "⏳": "hourglass", "⌛": "hourglass", "📊": "chart", "📈": "chart", "🛠": "tool", "🔧": "tool",
+    "🔨": "tool", "⚙": "gear", "🗑": "trash", "🔗": "link", "🪙": "coin", "🛡": "shield",
+    "👤": "user", "👥": "users", "🙋": "users", "🎭": "roles", "💬": "chat", "📝": "note",
+    "✏": "edit", "✍": "edit", "📦": "package", "🧾": "receipt", "🖥": "screen", "🔔": "bell",
+    "🔕": "bell", "⚡": "zap", "🚀": "rocket", "📜": "scroll", "📎": "clip", "📅": "calendar",
+    "🗓": "calendar", "💎": "gem", "🌐": "globe", "🌍": "globe", "🧪": "test", "🚫": "ban",
+    "⛔": "ban", "🚷": "ban", "🎮": "game", "📢": "announce", "📣": "announce", "💰": "money",
+    "💲": "money", "💸": "money", "➕": "plus", "➖": "minus", "🖼": "image", "🎬": "film",
+    "🎞": "film", "📬": "mail", "📭": "mail", "📪": "mail", "📩": "mail", "📨": "mail",
+    "✉": "mail", "📧": "mail", "📚": "book", "📖": "book", "📄": "file", "📃": "file",
+    "📑": "file", "📁": "folder", "📂": "folder", "🗂": "folder", "🏠": "home", "💡": "idea",
+    "🔄": "refresh", "🔁": "refresh", "🔊": "sound", "🔇": "mute", "🏆": "trophy", "🥇": "trophy",
+    "🏅": "trophy", "🔍": "search", "🔎": "search", "🕵": "search", "🔥": "fire", "🚩": "flag",
+    "🏁": "flag", "🧹": "clean", "🚪": "door", "📋": "clipboard", "🆔": "id", "🔢": "hashtag",
+    "⚖": "scale", "🌱": "seed", "💾": "save", "🐛": "bug", "📥": "inbox", "📤": "outbox",
+}
+
+
+def themed(stored) -> str:
+    """Display form of a stored/config emoji: its registry glyph (monochrome fallback
+    now, custom image once uploaded) when it's a known emoji, else the stored string
+    unchanged. Safe anywhere custom emojis render - card and embed text."""
+    if not stored:
+        return ""
+    name = _RAW_TO_NAME.get(stored) or _RAW_TO_NAME.get(stored.replace("️", ""))
+    return getattr(E, name) if name else stored
+
+
+def themed_component(stored):
+    """emoji= form for a button or select option: the custom emoji once its image is
+    uploaded, else the original stored emoji (always a valid Discord emoji). Never the
+    monochrome fallback, which Discord can reject as a component emoji."""
+    if not stored:
+        return None
+    name = _RAW_TO_NAME.get(stored) or _RAW_TO_NAME.get(stored.replace("️", ""))
+    if name and _EMOJI_IDS.get(name):
+        return f"<:xzx_{name}:{_EMOJI_IDS[name]}>"
+    return stored
+
+
 UNITS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
 HEX_RE = re.compile(r"^#?([0-9a-fA-F]{6})$")
 
